@@ -16,7 +16,17 @@ The issue tracker and triage label vocabulary should have been provided to you �
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below, then publish it to the project issue tracker. On an **opt-in** tracker apply the `ready-for-agent` triage label. On an **opt-out** tracker (see the section below) do NOT — a raw spec must not invite the drain; label it off instead.
+
+## Machine-drainable trackers (e.g. GitHub + Sandcastle-style automation)
+
+Some trackers run an autonomous drain (a cheap model attempts every open issue unless labeled off, then escalates on failure). That drain typically parses only two things out of the issue body: a `## Acceptance criteria` section of `- [ ]` checkboxes, and a `## Blocked by` section of bare `- #<number>` references — everything else (Problem Statement, User Stories, Implementation Decisions, …) is context it reads but can't verify mechanically.
+
+A spec published by this skill is a **PRD-shaped umbrella issue**, not a checkbox-bearing tracer bullet — it has no `## Acceptance criteria` section, so an autonomous drain that picks it up has nothing to verify against and will thrash on it. Guard against that:
+
+- **On an opt-out tracker, apply the canonical do-not-touch label directly** (e.g. `no-agent` on SignPortal — check the repo's label docs) so the spec sits inert until it's diced into tickets. Make this the primary guard; don't rely on a title convention alone.
+- **Also title the issue `PRD: <short title>`.** On SignPortal the drain auto-adds the `parent` label to `PRD:`-titled issues and skips `parent`, so this is a second layer — but it only takes effect once a drain cycle has run its label-sync, leaving a race window at publish time that the explicit `no-agent` above closes.
+- The expected next step is `/to-tickets` on this same spec, which produces the checkbox-bearing children the drain can actually execute. Those children are what carry `## Acceptance criteria`; the spec itself never should.
 
 <spec-template>
 
