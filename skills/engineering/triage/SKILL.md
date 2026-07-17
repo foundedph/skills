@@ -76,7 +76,7 @@ Show counts and a one-line summary per item. Let the maintainer pick.
 4. **Grill (if needed).** If the request needs fleshing out, run the `/grilling` and `/domain-modeling` skills together — grill it into shape one question at a time, sharpening domain terms and updating `CONTEXT.md`/ADRs inline as decisions land.
 
 5. **Apply the outcome:**
-   - `ready-for-agent` — post an agent brief comment ([AGENT-BRIEF.md](AGENT-BRIEF.md)).
+   - `ready-for-agent` — write an agent brief ([AGENT-BRIEF.md](AGENT-BRIEF.md)). **Where the brief goes depends on the tracker (check `docs/agents/issue-tracker.md`):** if this repo's drain builds its prompt from the issue **body only** and can't read comments (e.g. SignPortal's Sandcastle), the brief — and especially its `## Acceptance criteria` checkbox list and `## Blocked by:` section — MUST be written **into the issue body** (edit the body via `gh issue edit <n> --body`), not posted as a comment. A brief in a comment is invisible to a body-only drain, so the agent gets the underspecified original body and thrashes. Only post the brief as a comment when the tracker's agent actually reads comments. On an opt-out tracker, also remember `ready-for-agent` is an ignored label — the real "ready" signal is the well-specified body itself (see `docs/agents/triage-labels.md`).
    - `ready-for-human` — same structure as an agent brief, but note why it can't be delegated (judgment calls, external access, design decisions, manual testing).
    - `needs-info` — post triage notes (template below).
    - `wontfix` — close, with the comment depending on *why*:
