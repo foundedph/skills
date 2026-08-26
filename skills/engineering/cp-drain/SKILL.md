@@ -5,14 +5,16 @@ description: Drain the ENTIRE open-PR queue into dev, not just one PR — the wh
 
 You are standing in for the control-plane daemon's *scheduler*, not just its reviewer. `cp-drive` drives one PR from review to merge; this skill is the loop around it that keeps calling `cp-drive` — plus a repair step for the blockers `cp-drive` deliberately leaves alone — until the queue is empty or everything left in it is parked for a reason only a human can resolve.
 
-**Read `.claude/skills/cp-drive/SKILL.md` first.** Every review, fix, label, and merge this skill performs is `cp-drive` Steps 0-5, verbatim, run once per PR. This file does not restate that contract — it only adds the queue loop and the mechanical-repair step `cp-drive` explicitly declines to do.
+**Read the `cp-drive` skill's SKILL.md first** (global skill at `~/.claude/skills/cp-drive/SKILL.md`, or invoke it via the Skill tool). Every review, fix, label, and merge this skill performs is `cp-drive` Steps 0-5, verbatim, run once per PR. This file does not restate that contract — it only adds the queue loop and the mechanical-repair step `cp-drive` explicitly declines to do.
 
 This is a bigger takeover than `cp-drive`: it will merge multiple PRs into `dev`, one after another, without checking in between. That is what "drain the queue" means, and it is exactly what the daemon itself does continuously — this skill exists because the user asked for that loop by hand. Say this once, up front, then run it; don't ask again per PR.
 
 ## 0. Preconditions — don't fight the daemon
 
 ```bash
-ssh wlq@100.91.238.88 'lsof -i :8791'
+ssh wlq@192.168.2.6 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8791/api/health'
+# expect 200. Do NOT use `lsof -i :8791`: the daemon runs as user `it`, so an
+# unprivileged probe as `wlq` sees nothing and falsely reports the daemon down.
 ```
 
 If the daemon is up and has touched a PR recently (`pi-reviewing` labels that are actually moving, not stale), it already owns the queue — running this skill alongside it means two writers racing the same merge gate. Say so and stop, unless the user explicitly wants to take over anyway (e.g., the daemon is up but visibly stuck on one PR for a long time). If the daemon is down, slow, or genuinely backed up, proceed.
