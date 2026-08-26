@@ -15,7 +15,7 @@ The daemon must not be working the same PR concurrently — both of you pushing 
 gh pr view <PR> --json number,title,author,baseRefName,headRefName,labels,mergeable,mergeStateStatus,isDraft
 ```
 
-- `pi-reviewing` present → a session may be live. Check whether the daemon is actually alive before proceeding: `ssh wlq@192.168.2.6 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8791/api/health'` (expect 200 — `lsof -i :8791` as `wlq` cannot see a daemon owned by `it` and falsely reads as down) (see `automation/scripts/CONTROL-PLANE-DEPLOY.md`). If it is up and recently active, say so and stop — the wait is normal, not a failure.
+- `pi-reviewing` present → a session may be live. Check whether the daemon is actually alive before proceeding: `ssh wlq@100.86.147.86 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8791/api/health'` (expect 200 — `lsof -i :8791` as `wlq` cannot see a daemon owned by `it` and falsely reads as down) (see `automation/scripts/CONTROL-PLANE-DEPLOY.md`). If it is up and recently active, say so and stop — the wait is normal, not a failure.
 - `needs-human-review` / `do-not-merge` / `wip` → the daemon already parked this PR. Review is still useful, but merging is a human decision; do not remove those labels yourself.
 - Draft PRs are skipped by the daemon. Say so and stop unless the user explicitly wants it reviewed anyway.
 

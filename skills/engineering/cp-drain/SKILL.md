@@ -12,7 +12,7 @@ This is a bigger takeover than `cp-drive`: it will merge multiple PRs into `dev`
 ## 0. Preconditions — don't fight the daemon
 
 ```bash
-ssh wlq@192.168.2.6 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8791/api/health'
+ssh wlq@100.86.147.86 'curl -s -o /dev/null -w "%{http_code}" http://localhost:8791/api/health'
 # expect 200. Do NOT use `lsof -i :8791`: the daemon runs as user `it`, so an
 # unprivileged probe as `wlq` sees nothing and falsely reports the daemon down.
 ```
