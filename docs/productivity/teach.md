@@ -33,6 +33,7 @@ Reach for it when you want to *learn* a topic over time — a language, a framew
 - `./learning-records/*.md` — what you've learned, ADR-style, used to judge what to teach next.
 - `./assets/*` — reusable components (a shared stylesheet first) so the lessons look like one course.
 - `NOTES.md` — your teaching preferences.
+- `course.json` — an optional manifest of the whole course, written only when you want to hand the workspace to another system.
 
 ## Mission, and the zone of proximal development
 
@@ -41,6 +42,12 @@ Every lesson hangs off the **mission**. Without it, knowledge has nothing to att
 ## Storage strength, not fluency
 
 The word to think with is **storage strength** — long-term retention — as opposed to **fluency**, the in-the-moment recall that feels like mastery but isn't. `teach` deliberately builds the former through desirable difficulty: retrieval practice, spacing, and interleaving. Knowledge is taught first (where difficulty is the enemy), then skills are drilled through a tight feedback loop (where difficulty is the tool).
+
+## Handing the course to another system
+
+The lessons are HTML written for a human with a browser — they have no declared structure, so anything that scrapes their markup breaks the first time a lesson is written differently. When you want the course to leave the workspace (into an LMS, into a colleague's tooling), ask `teach` to pack it and it writes `course.json` instead: the lessons grouped into modules, each body as markdown, each quiz as data, the mission verbatim. The importer reads that one file and never touches the HTML.
+
+Two things only get written at packing time, because only the teacher knows them — where one phase of the course ends, and why each quiz answer is right.
 
 ## Where it fits
 
