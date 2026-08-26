@@ -18,6 +18,7 @@ Treat the current directory as a teaching workspace. The state of their learning
 - `./lessons/*.html`: A directory of lessons. A **lesson** is a single, self-contained HTML output that teaches one tightly-scoped thing tied to the mission. This is the primary unit of teaching in this workspace.
 - `./assets/*`: Reusable **components** shared across lessons. See [Assets](#assets).
 - `NOTES.md`: A scratchpad for you to jot down user preferences, or working notes.
+- `course.json`: An optional machine-readable manifest of the whole course, written only when the workspace is being handed to another system (an LMS, a course platform, someone else's tooling). Use the format in [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md).
 
 ## Philosophy
 
@@ -134,6 +135,17 @@ Some learning topics lend themselves to reference:
 - Glossaries for any topic with its own nomenclature
 
 Glossaries, in particular, are an essential reference. Once one is created, it should be adhered to in every lesson.
+
+## Packing the course for another system
+
+The HTML lessons are written for a human with a browser. They have no declared structure — the section headings, do-steps, callouts and quiz blocks are how one generation run happened to write them, not a contract. Any other system that scrapes those class names breaks silently the first time a lesson is written differently.
+
+So when the user wants this course to leave the workspace — imported into an LMS, handed to a colleague's tooling — do not tell them to parse the HTML. Write `course.json` per [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md): the lessons grouped into modules you choose, each body as markdown, each quiz as data, the mission verbatim.
+
+Two things that only get written at packing time, and are worth the effort:
+
+- **Module grouping.** The lesson numbering carries order but not the arc. You taught the course; you know where one phase ends. Emit that judgment rather than leaving a consumer to infer it.
+- **Quiz explanations.** The inline HTML feedback is generic by necessity — there is nowhere in a self-contained lesson to put a per-option explanation. `course.json` has a slot for it. Fill it from the lesson's own prose.
 
 ## `NOTES.md`
 
