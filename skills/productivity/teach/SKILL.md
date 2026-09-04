@@ -18,7 +18,7 @@ Treat the current directory as a teaching workspace. The state of their learning
 - `./lessons/*.html`: A directory of lessons. A **lesson** is a single, self-contained HTML output that teaches one tightly-scoped thing tied to the mission. This is the primary unit of teaching in this workspace.
 - `./assets/*`: Reusable **components** shared across lessons. See [Assets](#assets).
 - `NOTES.md`: A scratchpad for you to jot down user preferences, or working notes.
-- `course.json`: An optional machine-readable manifest of the whole course, written only when the workspace is being handed to another system (an LMS, a course platform, someone else's tooling). Use the format in [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md).
+- `course.json`: The machine-readable manifest of the whole course. Write it at the workspace root and keep it current — see [Keep `course.json` current](#keep-coursejson-current). Use the format in [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md).
 
 ## Philosophy
 
@@ -140,9 +140,15 @@ Glossaries, in particular, are an essential reference. Once one is created, it s
 
 The HTML lessons are written for a human with a browser. They have no declared structure — the section headings, do-steps, callouts and quiz blocks are how one generation run happened to write them, not a contract. Any other system that scrapes those class names breaks silently the first time a lesson is written differently.
 
-So when the user wants this course to leave the workspace — imported into an LMS, handed to a colleague's tooling — do not tell them to parse the HTML. Write `course.json` per [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md): the lessons grouped into modules you choose, each body as markdown, each quiz as data, the mission verbatim.
+So the workspace carries its own machine-readable view. Never tell a consumer to parse the HTML — write `course.json` per [LESSON-PACK-FORMAT.md](./LESSON-PACK-FORMAT.md): the lessons grouped into modules you choose, each body as markdown, each quiz as data, the mission verbatim.
 
-Two things that only get written at packing time, and are worth the effort:
+### Keep `course.json` current
+
+Write it as soon as the workspace has its first lesson, and rewrite it in the same turn as any change to the course's content — a lesson added, retitled, renumbered, rewritten, or deleted; a quiz reworded; the mission revised. It is a derived file, so a stale one is worse than a missing one: an import silently ships last week's course, and nothing about the folder looks wrong.
+
+Do not wait to be asked, and do not wait for a packing request. Deciding at packing time is what produced the earlier failure mode — a finished, zipped, shared course with no manifest in it, discovered only when someone tried to import it and had to come back for a second export.
+
+Two things `course.json` holds that no lesson file can, and that are worth the effort every time you rewrite it:
 
 - **Module grouping.** The lesson numbering carries order but not the arc. You taught the course; you know where one phase ends. Emit that judgment rather than leaving a consumer to infer it.
 - **Quiz explanations.** The inline HTML feedback is generic by necessity — there is nowhere in a self-contained lesson to put a per-option explanation. `course.json` has a slot for it. Fill it from the lesson's own prose.
