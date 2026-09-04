@@ -153,6 +153,97 @@ Two things `course.json` holds that no lesson file can, and that are worth the e
 - **Module grouping.** The lesson numbering carries order but not the arc. You taught the course; you know where one phase ends. Emit that judgment rather than leaving a consumer to infer it.
 - **Quiz explanations.** The inline HTML feedback is generic by necessity — there is nowhere in a self-contained lesson to put a per-option explanation. `course.json` has a slot for it. Fill it from the lesson's own prose.
 
+## Distributing to a human
+
+A learner never opens `course.json` and does not care that it is there. They have a phone or laptop, a browser, and an email attachment. When the user says "send it to someone," "zip it up," "share with my team," or "I want my mom to take this," the deliverable is a **distributable folder**, not a manifest.
+
+Treat the distributable as a separate artifact from the workspace. Do not let it leak into teaching state. The layout the workspace settles into:
+
+```
+<workspace>/
+├── MISSION.md                 # teaching state — never distributed
+├── NOTES.md                   # teaching state — never distributed
+├── RESOURCES.md               # teaching state — never distributed
+├── learning-records/          # teaching state — never distributed
+├── lessons/                   # source
+├── reference/
+└── assets/
+    └── course.css             # source stylesheet
+```
+
+And at the same level, after packing:
+
+```
+<workspace>/
+├── … (workspace above) …
+└── <slug>/                    # distributable — what the learner receives
+    ├── README.md              # what's in here, how to host it
+    ├── START-HERE.html        # landing page with links to every lesson
+    ├── course.css             # copy of the source stylesheet at root
+    ├── lessons/
+    │   ├── course.css         # sibling copy — see Self-containment below
+    │   └── 0001-…0008-…html
+    └── reference/
+        └── glossary.html
+```
+
+### Choosing the slug
+
+The distributable folder name is the **course name in dash-case**, and it is what the learner sees when they unzip. Pick a name that reads like a course title, not a filename: `todoist-for-real-life`, `intro-to-supabase-auth`, `leadership-foundations`. If the user gave you a course title, use it verbatim; otherwise ask before picking — the user has strong opinions about naming, and a wrong name is annoying to rename later (every reference inside the lessons, every zip, every Drive share).
+
+The slug also names the zip (`<slug>.zip`) and is the title of `START-HERE.html`. One name, used three places.
+
+### What gets dropped on the way out
+
+`MISSION.md`, `NOTES.md`, `RESOURCES.md`, and `learning-records/` are **teaching notes for you, not for the learner**. They explain why you built it this way, what to teach next, what to ignore. None of that is useful to someone learning Todoist for the first time. Excluding them keeps the handoff clean and keeps your private teaching state private.
+
+### Self-containment
+
+A learner will not respect the folder structure. They will email a single lesson to a friend, drag it onto a USB stick, or open it on a phone that mangles paths. Each HTML file in `lessons/` must therefore work **as if it were alone** — its `<link rel="stylesheet">` must point at a sibling `course.css`, not at `../assets/course.css` two levels up. This means every lesson ships with its own copy of the stylesheet.
+
+The `reference/glossary.html` is allowed to keep a `../course.css` reference (it lives one level under the package root) — but verify the path resolves in the distributed folder, not just the workspace.
+
+**Pitfall:** if you copy `course.css` next to each lesson via a loop, do not let the destination filename inherit from the source. The naive `shutil.copy(src, dest)` inside `for fn in lessons:` produces `0001-sign-up-and-meet-your-inbox.css`, `0002-projects-personal-and-shared.css`, etc. — the lessons still link to `course.css`, which doesn't exist, and every lesson renders unstyled. Always copy with an explicit destination name: `shutil.copy(src, os.path.join(lessons_dir, "course.css"))`.
+
+### Build procedure
+
+Run from the workspace root. Six steps, fully scripted:
+
+1. Confirm the slug with the user (or pick it from the course title).
+2. Create `<slug>/` as a sibling of the source `lessons/` and `reference/`.
+3. Copy `lessons/*.html` and `reference/*.html` into it, preserving subfolders.
+4. For each lesson HTML, rewrite `<link rel="stylesheet" href="../assets/course.css">` to `<link rel="stylesheet" href="course.css">`. For glossary, rewrite `href="assets/course.css"` to `href="../course.css"` (it sits one level under) and `href="lessons/..."` to `href="../lessons/..."`.
+5. Copy `assets/course.css` to two places: `<slug>/course.css` (root) and `<slug>/lessons/course.css` (sibling of every lesson). Drop an empty `assets/` if the source had one and nothing else.
+6. **Verify every relative `href` resolves on disk before declaring done.** See Verification below.
+
+Then author:
+
+- **`START-HERE.html`** at `<slug>/` root — a one-page index with the course title, a short "how to take this" list, a table linking every lesson by title, a link to the glossary, and a callout that homework must be done on the learner's real account. Style it with the sibling `course.css`.
+- **`README.md`** at `<slug>/` root — for the person handing the course off. Lists what is in the folder, how the learner opens it, and how to host it (Netlify Drop, GitHub Pages, `vercel deploy`). The learner doesn't read this; the distributor does.
+
+### Verification
+
+A broken stylesheet path is **silent** — the lesson renders as raw browser-default HTML and the learner assumes the course is ugly by design. Always run a link check before zipping.
+
+A reference implementation lives at [`scripts/verify-distributable-links.py`](./scripts/verify-distributable-links.py). The check itself is short:
+
+1. Walk the distributable folder.
+2. For every `*.html`, extract every `href="..."` value that is not `http://`, `https://`, `#`, or `mailto:`.
+3. Resolve each href relative to the file that contains it (`os.path.normpath` join).
+4. Confirm the resolved path exists on disk. If any do not, fix and re-run.
+
+Five seconds of work, catches the misnamed-sibling-CSS pitfall and the broken-glossary-path bug every time. Do not skip this step.
+
+### Zip
+
+`cd` to the parent of the `<slug>/` folder — that is, the workspace root. `zip -r <slug>.zip <slug> -x "*.DS_Store"`. Confirm the resulting zip's **top-level entry is the slug folder**, not the contents scattered at the archive root (`zip -sf <slug>.zip | head` shows this). The learner unzips, opens `<slug>/START-HERE.html` — done.
+
+If you zipped from inside `<slug>/` by accident, the archive root will contain `START-HERE.html` and `lessons/` flat — the learner unzips into a mess. Rebuild from the parent.
+
+### `course.json` ships with the folder
+
+Include `course.json` in the distributable folder and the zip, alongside the human-facing artifacts. It costs a learner nothing — they never open it — and it is what makes the folder importable rather than merely readable.
+
 ## `NOTES.md`
 
 The user will sometimes express preferences of how they want to be taught, or things you should keep in mind. This is the place to record those preferences, so you can refer back to them when designing lessons or working with the user.
