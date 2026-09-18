@@ -2,6 +2,7 @@
 
 Tools I keep around but rarely use — not promoted in the plugin.
 
+- **[apple-design](./apple-design/SKILL.md)** — Apple's approach to fluid interface design and physical motion, translated for the web. Vendored from [emilkowalski/skills](https://github.com/emilkowalski/skills).
 - **[git-guardrails-claude-code](./git-guardrails-claude-code/SKILL.md)** — Set up Claude Code hooks to block dangerous git commands (push, reset --hard, clean, etc.) before they execute.
 - **[migrate-to-shoehorn](./migrate-to-shoehorn/SKILL.md)** — Migrate test files from `as` type assertions to @total-typescript/shoehorn.
 - **[scaffold-exercises](./scaffold-exercises/SKILL.md)** — Create exercise directory structures with sections, problems, solutions, and explainers.
