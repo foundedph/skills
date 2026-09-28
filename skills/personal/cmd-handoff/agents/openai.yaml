@@ -1,0 +1,5 @@
+interface:
+  display_name: "Command Code Handoff"
+  short_description: "Implement via Command Code on DeepSeek V4 Flash"
+policy:
+  allow_implicit_invocation: false
