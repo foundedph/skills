@@ -56,4 +56,26 @@ expect "nested SKILL.md below a skill is ignored" 0 "" "$TMP/nested"
 mkdir -p "$TMP/nomanifest/skills/engineering/tdd"
 expect "missing plugin.json is a setup error" 2 "plugin.json" "$TMP/nomanifest"
 
+make_repo "$TMP/malformed" engineering/tdd -- engineering/tdd
+printf '{ "skills": ["./skills/engineering/tdd",] }\n' > "$TMP/malformed/.claude-plugin/plugin.json"
+expect "malformed plugin.json is a setup error" 2 "malformed" "$TMP/malformed"
+
+make_repo "$TMP/slash" engineering/tdd -- engineering/tdd
+printf '{ "skills": ["./skills/engineering/tdd/"] }\n' > "$TMP/slash/.claude-plugin/plugin.json"
+expect "trailing-slash entry is a bad entry" 1 "bad entry: ./skills/engineering/tdd/" "$TMP/slash"
+
+make_repo "$TMP/noprefix" engineering/tdd -- engineering/tdd
+printf '{ "skills": ["skills/engineering/tdd"] }\n' > "$TMP/noprefix/.claude-plugin/plugin.json"
+expect "entry without ./skills/ prefix is a bad entry" 1 "bad entry: skills/engineering/tdd" "$TMP/noprefix"
+
+make_repo "$TMP/deep" engineering/tdd engineering/tdd/examples/sub -- engineering/tdd engineering/tdd/examples/sub
+expect "nested entry is a bad entry" 1 "bad entry: ./skills/engineering/tdd/examples/sub" "$TMP/deep"
+
+make_repo "$TMP/dup" engineering/tdd -- engineering/tdd engineering/tdd
+expect "duplicate entry fails" 1 "duplicate in plugin.json: engineering/tdd" "$TMP/dup"
+
+make_repo "$TMP/stray" engineering/tdd -- engineering/tdd
+printf '{ "skills": ["./skills/engineering/tdd"], "homepage": "./skills/misc/x" }\n' > "$TMP/stray/.claude-plugin/plugin.json"
+expect "./skills strings outside .skills are ignored" 0 "" "$TMP/stray"
+
 [ "$FAILS" = 0 ] && echo "all passed" || { echo "$FAILS failed"; exit 1; }

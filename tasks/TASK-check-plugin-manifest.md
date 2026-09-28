@@ -76,3 +76,17 @@ missing from plugin.json: engineering/cp-drive
 
 Real drift exists: those two dirs are under `skills/engineering/` with a `SKILL.md` but are absent from `.claude-plugin/plugin.json`. Per the denylist I did **not** touch the manifest — reporting only. No manifest entry lacked a `SKILL.md`, so no `no such skill` lines.
 
+
+## Review round 1 — NEEDS_WORK
+
+New failing tests were added to `scripts/test-check-plugin-manifest.sh` (don't edit it). Make all of them pass, **both with `jq` and with `jq` absent from PATH** (macOS has `/usr/bin/jq`, so `PATH=/usr/bin:/bin` does NOT hide it — the reviewer runs the suite with a PATH of symlinks that omits jq but includes `python3`).
+
+Findings to address in `scripts/check-plugin-manifest.sh`:
+
+1. **Malformed JSON must exit 2** with a message containing `malformed`. Don't swallow parse errors with `2>/dev/null || true`. Parser order: `jq` → `python3 -c 'import json…'` → last-resort `grep`/`sed` (which can't validate; print a `warning:` to stderr when used). All parsers read **only** the top-level `skills` array — `./skills/...` strings elsewhere in the file must be ignored.
+2. **Strict entry shape.** Every entry must match exactly `./skills/<bucket>/<name>` (no trailing slash, no missing `./`, no deeper nesting). Anything else → `bad entry: <raw entry>` and exit 1. Don't silently drop or normalise.
+3. **Duplicates** → `duplicate in plugin.json: <bucket>/<name>`, exit 1.
+4. Don't let `|| true` hide a genuinely failing command (e.g. grep missing → exit 127 should not become "empty manifest").
+5. Standards (judgement calls, do them): define the promoted buckets once (e.g. `PROMOTED_BUCKETS="engineering productivity"` + a `case`) instead of listing them twice; rename `n` → `promoted_count`, `extra` → `unpromoted`, `stale` → `dangling`; avoid `printf | grep -q` in `contains` (use a `case "$nl$list$nl" in *"$nl$item$nl"*)` match) so pipefail/SIGPIPE can't cause a false result.
+
+Update the Executor results section (replace the old one's claims) and say honestly how you verified the no-jq path.
