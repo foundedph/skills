@@ -47,25 +47,29 @@ Do not commit or push.
 
 ## Executor results
 
-- **Status:** done — `bash scripts/test-check-plugin-manifest.sh` prints `all passed` and exits 0.
+- **Status:** done — `bash scripts/test-check-plugin-manifest.sh` prints `all passed` and exits 0, both with `jq` on PATH and with `jq` hidden from PATH.
 - **Created:** `scripts/check-plugin-manifest.sh` (executable, `chmod +x`). No other files touched.
 
 ### What it does
 
-- Promoted set: globs one level under `skills/engineering/` and `skills/productivity/`, keeping dirs with a `SKILL.md` (nested `SKILL.md` deeper than one level is ignored).
-- Manifest parsing: `jq -r '.skills[]?'` when `jq` is on PATH, else `grep -o '"\./skills/[^"]*"'` + `sed`. Both normalise `./skills/<bucket>/<name>` to `<bucket>/<name>`.
-- Reports on stderr, then exits 1 on any problem:
+- Promoted set: globs one level under each bucket in `PROMOTED_BUCKETS="engineering productivity"`, keeping dirs with a `SKILL.md`; a `SKILL.md` nested deeper than one level is ignored.
+- Parses only the top-level `skills` array, in order `jq` → `python3 -c 'import json…'` → grep/sed. The grep/sed last resort prints a `warning:` to stderr because it cannot validate JSON.
+- Strict entry shape: an entry must be exactly `./skills/<bucket>/<name>` (no trailing slash, no missing `./`, no deeper nesting). Anything else → `bad entry: <raw entry>`. Duplicates → `duplicate in plugin.json: <bucket>/<name>`.
+- Reports every problem on stderr, then exits 1:
   - `missing from plugin.json: <bucket>/<name>`
+  - `bad entry: <raw entry>`
   - `not promoted but in plugin.json: <bucket>/<name>`
+  - `duplicate in plugin.json: <bucket>/<name>`
   - `no such skill: <bucket>/<name>`
-- Exits 0 with `plugin.json in sync (<n> skills)` on stdout; exits 2 (message mentions `plugin.json`) when the manifest is missing.
-- `set -euo pipefail`; bash 3.2 safe (no `mapfile`/associative arrays).
+- Exit 0 with `plugin.json in sync (<promoted_count> skills)` on stdout; exit 2 when the manifest is missing or malformed (message contains `malformed` / `plugin.json`).
+- `set -euo pipefail`; bash 3.2 safe (no `mapfile`/associative arrays). No `|| true`: a failed parse/command surfaces instead of becoming an empty manifest (grep exit 1 = empty array; any other code aborts).
 
 ### Verification
 
 - `bash -n scripts/check-plugin-manifest.sh` → ok.
-- `bash scripts/test-check-plugin-manifest.sh` → `all passed`, exit 0.
-- `PATH=/usr/bin:/bin bash scripts/test-check-plugin-manifest.sh` (jq not on PATH) → `all passed`, exit 0.
+- `bash scripts/test-check-plugin-manifest.sh` → `all passed`, exit 0 (12/12).
+- **No-jq path — how I actually verified it:** `/usr/bin/jq` exists on this machine, so `PATH=/usr/bin:/bin` does *not* hide jq. I built a temp bin dir of symlinks that omits jq but includes `python3`, asserted `PATH="$BIN" command -v jq` was empty, then ran `PATH="$BIN" bash scripts/test-check-plugin-manifest.sh` → `all passed`, exit 0. That exercises the `python3` parser against all 12 tests (including malformed → exit 2).
+- Extra: with **both** jq and python3 absent, the grep/sed fallback passes 11/12 — only the malformed case fails, which a non-validating fallback cannot detect (it prints the warning). This configuration is outside the required matrix.
 
 ### Real-repo run (`bash scripts/check-plugin-manifest.sh`, exit 1)
 
