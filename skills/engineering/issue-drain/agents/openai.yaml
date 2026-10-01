@@ -1,0 +1,5 @@
+interface:
+  display_name: "Issue drain"
+  short_description: "Run a whole issue backlog to merged"
+policy:
+  allow_implicit_invocation: false
