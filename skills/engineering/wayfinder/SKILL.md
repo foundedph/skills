@@ -20,7 +20,7 @@ Every map and ticket is an issue, so it has a **name**: its title. In everything
 
 The map is a single issue on this repo's issue tracker, labelled `wayfinder:map`, the canonical artifact. Its tickets are child issues of the map.
 
-**Keep the map and its tickets off any autonomous issue drain.** If this repo runs an opt-out drain (a cheap model attempts every open issue unless labeled off — check the repo's label docs), apply that drain's opt-out label (e.g. `no-agent`) to the map issue and to every ticket you create, in the same call that creates them. A wayfinder ticket's body is a bare **Question** — it has no `## Acceptance criteria` checkbox list for the drain to verify against, and every ticket type but Task is HITL by definition, so an autonomous drain that picks one up either stalls with nothing to check or, worse, "resolves" a decision that was supposed to be made *with* the human. Tickets only ever get worked through the invocation modes below (`/research` subagent, `/grilling`, `/prototype`, or direct task execution) — never through a generic issue-fixing drain. This is a routing gap the drain's skip-label list doesn't already know about; don't rely on it to filter these out for you.
+<!-- LOCAL DELTA --> **Keep the map and its tickets off any autonomous issue drain.** If this repo runs an opt-out drain (a cheap model attempts every open issue unless labeled off — check the repo's label docs), apply that drain's opt-out label (e.g. `no-agent`) to the map issue and to every ticket you create, in the same call that creates them. A wayfinder ticket's body is a bare **Question** — it has no `## Acceptance criteria` checkbox list for the drain to verify against, and every ticket type but Task is HITL by definition, so an autonomous drain that picks one up either stalls with nothing to check or, worse, "resolves" a decision that was supposed to be made *with* the human. Tickets only ever get worked through the invocation modes below (`/research` subagent, `/grilling`, `/prototype`, or direct task execution) — never through a generic issue-fixing drain. This is a routing gap the drain's skip-label list doesn't already know about; don't rely on it to filter these out for you.
 
 The map is an **index**, not a store. It lists the decisions made and points at the tickets that hold their detail; a decision lives in exactly one place, its ticket, so the map never restates it, only gists it and links.
 
@@ -64,7 +64,7 @@ Each ticket is a **child issue** of the map; the tracker's issue id is its ident
 <the decision or investigation this ticket resolves>
 ```
 
-Each ticket carries a `wayfinder:<type>` label, one of `research`, `prototype`, `grilling`, `task` (see [Ticket Types](#ticket-types)). `wayfinder:` labels are the only labels a map and its tickets carry, never a triage label like `ready-for-agent`: they are decisions, not implementation work.
+Each ticket carries a `wayfinder:<type>` label, one of `research`, `prototype`, `grilling`, `task` (see [Ticket Types](#ticket-types)). `wayfinder:` labels are the only labels a map and its tickets carry, never a triage label like `ready-for-agent`: they are decisions, not implementation work. <!-- LOCAL DELTA --> Sole exception: on an opt-out drain tracker, also add the drain's opt-out label (`no-agent`), per the rule above.
 
 A session **claims** a ticket by assigning it to the dev driving the map, **first**, before any work, so concurrent sessions skip it. That assignee _is_ the claim: an open, unassigned ticket is unclaimed.
 

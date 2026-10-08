@@ -60,7 +60,7 @@ Iterate until the user approves the breakdown.
 Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured; the tickets are the same either way, only the shape of the blocking edges changes:
 
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
-- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. If the source was an existing issue, make each ticket its sub-issue (tracker doc's operation). **Labelling depends on whether the tracker is opt-in or opt-out — see "Environment specifics" below; do not blanket-apply `ready-for-agent`.** The tickets are agent-grabbable by construction either way.
+- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. If the source was an existing issue, make each ticket its sub-issue (tracker doc's operation). **Labelling depends on whether the tracker is opt-in or opt-out (see "Environment specifics" below); do not blanket-apply `ready-for-agent`.** <!-- LOCAL DELTA --> The tickets are agent-grabbable by construction either way. Sub-issue links are fine, but they never gate a body-only drain: always also write the body `## Blocked by` section.
 
 Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
@@ -101,6 +101,8 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 - `#<number>` — one bare reference per line, per blocking ticket.
 
 Or, if there are no blockers, replace the whole section body with the single line `None — can start immediately`. Never write a prose blocker ("the migration ticket", "waiting on design") in this section — automation that gates on it only recognizes `#<number>` or the literal "None" line; a prose line reads as an unresolvable manual hold and parks the ticket forever.
+
+<!-- LOCAL DELTA: upstream omits this section when blockers are native edges; keep it anyway, a body-only drain never sees native edges. -->
 
 </issue-template>
 
