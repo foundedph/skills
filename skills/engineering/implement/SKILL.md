@@ -12,47 +12,37 @@ If the user passes a ticket reference, fetch it from the issue tracker and state
 
 Drive the work test-first by calling the Skill tool with "tdd" (red → green → refactor). Default to TDD for every unit of behavior — write the failing test before the implementation. Only skip TDD when there is genuinely nothing to assert (pure config, docs, trivial rename) or the user explicitly opts out. If a seam is hard to test, treat that as a design signal and adjust the seam, not a reason to abandon TDD.
 
-## Route execution by budget tier
+## Route execution: GREEN goes to Command Code
 
-<!-- LOCAL DELTA (foundedph, 2026-08-22): upstream mattpocock/skills routes all
-     implementation to Pi unconditionally. Claude Max 20x is a flat-rate seat, so
-     that spends real DeepInfra money while a paid seat sits idle. Preserve this
+<!-- LOCAL DELTA (foundedph, 2026-10-08): upstream implements inline. We hand the
+     GREEN step to Command Code (DeepSeek V4 Flash) via /cmd-handoff to save
+     Claude tokens, keep judgment inline, and run review on Sonnet. Preserve this
      section across upstream re-syncs. -->
 
-**Check the budget tier before deciding who writes the code:**
+Split the work by who is best at it:
 
-```bash
-~/.local/bin/budget-tier-read
-```
-
-It prints `green` | `yellow` | `red`. **If it prints nothing and exits 1, the repo
-has not opted into budget routing — stay inline.** Never read "no output" as red.
-
-| Tier | Who writes the GREEN step | Why |
+| Step | Who | How |
 |---|---|---|
-| `green` (default) | **You, inline** — Sonnet 5 | Subscription is flat-rate; delegating costs money to save nothing. Do NOT invoke `/auto-handoff`. |
-| `yellow` | **You, inline**, conserving | Prefer Sonnet over Opus, delegate wide searches to subagents, don't re-read large files. Still no Pi. |
-| `red` | **Pi** via `/auto-handoff <slug>` | Weekly allowance projected to run out; spill to paid DeepInfra purely to protect what's left. |
+| **RED**: write the failing test | **You, inline** | Test authorship encodes intent and is never handed off. |
+| **GREEN**: make it pass | **Command Code** (`deepseek/deepseek-v4-flash`) | Call the Skill tool with "cmd-handoff", one seam per task slug. |
+| **REFACTOR** | **You, inline** | Tidy once green. |
+| **Review** | **Sonnet subagent** | See "Verify and close out". |
 
-### The TDD loop
+Stay inline, without handing off, for judgment rather than typing: diagnosing failures,
+unknown-cause bugs, design and seam decisions, or a spec that is still moving.
 
-1. **RED (always inline):** Write the failing test yourself. Test authorship encodes
-   intent and is never delegated, at any tier.
-2. **GREEN (routed per the table above):**
-   - *green / yellow* — implement it yourself. This is the normal path.
-   - *red* — hand off via `/auto-handoff <slug>`. The task spec must name the failing
-     test(s) and acceptance criteria so Pi can make them pass without this
-     conversation. Keep specs small (one seam per handoff).
-3. **REFACTOR (always inline):** Review and tidy once green.
+**Independent seams run in parallel.** When the work splits into seams with no shared
+files and no ordering between them, spawn one subagent per seam (Agent tool,
+`model: "sonnet"`). Each one writes its RED test, runs `/cmd-handoff <slug>` for GREEN,
+and reports back only the slug, the diff summary and the test result. Your context
+stays small. Seams that touch the same files run one after another.
 
-Regardless of tier, stay inline for anything that is judgment rather than typing:
-writing tests, diagnosing failures, design and seam decisions, and review.
-
-**There is no cross-provider fallback.** `pi-execute` routes only to DeepInfra
-(`DeepSeek-V4-Flash` / `-V4-Pro`); the OpenAI ladder was removed 2026-08-19. Pi also
-has no anthropic provider and no OAuth, so it **cannot** run Claude models — if
-DeepInfra is exhausted, the fallback is Claude Code itself, which on a Max seat is
-the cheaper destination anyway.
+**Fallbacks:**
+- `commandcode status` isn't authenticated → ask the user to run `commandcode login`;
+  meanwhile implement inline.
+- Command Code fails after `/cmd-handoff`'s 3 rounds → finish that seam inline.
+- Budget tier `red` (`~/.local/bin/budget-tier-read`) and Command Code is unavailable →
+  `/auto-handoff <slug>` to Pi is the overflow path.
 
 Note: if this repo also runs an autonomous drain over the same tracker
 (Sandcastle-style), that drain does not invoke `/implement` and never sees this file;
@@ -63,6 +53,9 @@ it builds its own prompt from the ticket body alone. So a ticket's
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, call the Skill tool with "code-review" to review the work.
+Once done, run the review on Sonnet: spawn a subagent with the Agent tool and
+`model: "sonnet"` whose prompt is to call the Skill tool with "code-review" against the
+fixed point you started from. Fix real findings (inline or through another
+`/cmd-handoff` round), then re-review.
 
 Commit your work to the current branch.

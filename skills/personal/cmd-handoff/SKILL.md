@@ -2,7 +2,7 @@
 name: cmd-handoff
 description: Implement a spec or tickets with the GREEN step handed off to the Command Code CLI on DeepSeek V4 Flash, reviewed by /code-review.
 argument-hint: "<task-slug> [--bg] [--fresh]"
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 Implement the work described by the user in the spec or tickets, the same way `/implement` does, except the GREEN step runs headless in the **Command Code** CLI (`commandcode`) on `deepseek/deepseek-v4-flash` instead of in this session or Pi. Each round is checked with `/code-review`.
@@ -11,7 +11,7 @@ The first word of the arguments is the task slug (kebab-case). `--bg` runs the e
 
 ## When to use
 
-Use only when the user asks for Command Code, or as the alternative to Pi's `/auto-handoff` when the budget tier is `red` (`~/.local/bin/budget-tier-read`). Command Code bills its own credits, so under `green`/`yellow` implement inline instead.
+This is the default GREEN path for `/implement` and `/implement-spec`, at every budget tier. Those skills call it once per seam, often from parallel subagents, each with its own task slug.
 
 Keep it inline anyway for judgement work: unknown-cause debugging, design trade-offs, or a spec that is still moving. If the work is like that, stop and say so.
 
@@ -64,7 +64,7 @@ With `--bg`, it returns immediately. Tell the user to check `cmd-execute.sh stat
 
 ## 4. Review with /code-review
 
-Commit the executor's changes to the current branch (it's told not to commit). Then run `/code-review` with fixed point `$BASE` and `tasks/TASK-<slug>.md` as the spec. It reports **Standards** and **Spec** separately. Do not merge or rerank the two.
+Commit the executor's changes to the current branch (it's told not to commit). Then run `/code-review` on Sonnet (a subagent with `model: "sonnet"` that calls the Skill tool with "code-review") with fixed point `$BASE` and `tasks/TASK-<slug>.md` as the spec. It reports **Standards** and **Spec** separately. Do not merge or rerank the two.
 
 Also run the spec's test and typecheck commands yourself. Don't trust the executor's results section.
 
@@ -72,7 +72,7 @@ Also run the spec's test and typecheck commands yourself. Don't trust the execut
 
 If either axis has real findings or tests fail, append them under a `## Review round <n>` heading in the task file and re-run step 3 **without** `--fresh`. The saved session resumes, and the prompt tells it to address each finding.
 
-Stop after round 3. Report the diff, the last review, and hand back to the user. Never loop silently. If Command Code keeps failing, finish the work inline: on a Max seat that costs less.
+Stop after round 3. Report the diff, the last review, and hand back to the user. Never loop silently. If Command Code keeps failing, finish the work inline.
 
 ## 6. REFACTOR and close out — inline
 

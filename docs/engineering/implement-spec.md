@@ -33,6 +33,10 @@ The tracker decides whether a pull request exists at all. If your tracker closes
 
 Implementers talk to the orchestrator through [context pointers](https://www.aihero.dev/ai-coding-dictionary/context-pointer) (the spec, the ticket, shared exploration notes, earlier commits) rather than pasted summaries. This keeps each subagent's prompt small and leaves room in the orchestrator's window for the graph.
 
+## Routing in this fork
+
+Implementer and merger subagents run on Sonnet. Each implementer hands its GREEN steps to Command Code via [cmd-handoff](../../skills/personal/cmd-handoff/SKILL.md), with one session per ticket seam. The final review stays on Sonnet.
+
 ## Common questions
 
 **How is this different from running `/implement` on each ticket myself?**
