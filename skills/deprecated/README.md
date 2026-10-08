@@ -1,8 +1,7 @@
 # Deprecated
 
-Skills I no longer use.
+Skills I no longer use, not promoted in the plugin. Upstream deletes retired skills; these are kept locally because they are still linked into my harness.
 
-- **[design-an-interface](./design-an-interface/SKILL.md)** — Generate multiple radically different interface designs for a module using parallel sub-agents.
-- **[qa](./qa/SKILL.md)** — Interactive QA session where user reports bugs conversationally and the agent files GitHub issues.
-- **[request-refactor-plan](./request-refactor-plan/SKILL.md)** — Create a detailed refactor plan with tiny commits via user interview, then file it as a GitHub issue.
-- **[ubiquitous-language](./ubiquitous-language/SKILL.md)** — Extract a DDD-style ubiquitous language glossary from the current conversation.
+- **[design-an-interface](./design-an-interface/SKILL.md)**: Generate multiple radically different interface designs for a module using parallel sub-agents.
+- **[qa](./qa/SKILL.md)**: Conversational QA session that files issues as you report bugs.
+- **[request-refactor-plan](./request-refactor-plan/SKILL.md)**: Plan a refactor via user interview and file it as an issue of tiny commits.

@@ -8,7 +8,9 @@ Implement the work described by the user in the spec or tickets.
 
 ## TDD first
 
-Drive the work test-first via `/tdd` (red → green → refactor). Default to TDD for every unit of behavior — write the failing test before the implementation. Only skip TDD when there is genuinely nothing to assert (pure config, docs, trivial rename) or the user explicitly opts out. If a seam is hard to test, treat that as a design signal and adjust the seam, not a reason to abandon TDD.
+If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask.
+
+Drive the work test-first by calling the Skill tool with "tdd" (red → green → refactor). Default to TDD for every unit of behavior — write the failing test before the implementation. Only skip TDD when there is genuinely nothing to assert (pure config, docs, trivial rename) or the user explicitly opts out. If a seam is hard to test, treat that as a design signal and adjust the seam, not a reason to abandon TDD.
 
 ## Route execution by budget tier
 
@@ -61,6 +63,6 @@ it builds its own prompt from the ticket body alone. So a ticket's
 
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
-Once done, use /code-review to review the work.
+Once done, call the Skill tool with "code-review" to review the work.
 
 Commit your work to the current branch.
