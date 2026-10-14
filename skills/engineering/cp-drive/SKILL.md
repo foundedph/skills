@@ -7,6 +7,22 @@ You are standing in for the control-plane daemon (`automation/`) on one pull req
 
 **The review criteria are NOT in this file.** They live in `automation/prompts/review.md`, which is what the daemon feeds its reviewer. Read that file at the start of every run and follow it. Duplicating the criteria here would let the two drift apart, and a stand-in that reviews by different rules is worse than no stand-in.
 
+## Routing
+
+<!-- LOCAL DELTA (foundedph, 2026-10-14): the review and blocker fixes go to
+     Command Code via /cmd-handoff's wrapper to save Claude tokens. Preserve this
+     section across upstream re-syncs. -->
+
+The daemon's own reviewer is Pi on DeepSeek, so this stand-in hands the same job to Command Code (`deepseek/deepseek-v4-flash`). Claude keeps the mechanical and authority steps, which are cheap and must be deterministic:
+
+| Step | Runs on |
+|---|---|
+| 0 safety check, 1 preflight, 3 verdict validation, 4 labels/comments, 5 merge gates + merge | This session (run it on Sonnet; none of it needs Opus) |
+| 2 review against `automation/prompts/review.md`, and the edits for a `fixed` verdict | Command Code, through the `cmd-handoff` skill's `scripts/cmd-execute.sh` |
+| An `escalate` verdict | Re-checked by this session on the named issue only, before parking the PR |
+
+Merge authority, label changes, and the never-`main` rule are never handed off. If `commandcode status` is not authenticated, or the executor fails (exit 1, 2, 4 or 5) twice, run step 2 inline and say so.
+
 ## 0. Confirm the takeover is safe
 
 The daemon must not be working the same PR concurrently — both of you pushing to the head branch corrupts the PR.
@@ -32,28 +48,49 @@ gh pr checkout <PR>
 Then run the two preflight gates:
 
 ```bash
-npm run check
+npm run check > /tmp/cp-check-<PR>.log 2>&1; echo "check exit $?"; tail -40 /tmp/cp-check-<PR>.log
 node --import tsx automation/scripts/security-scan.ts <baseRef>
 ```
+
+Read only the tail of the check log (grep it for a failing group if needed). The full output is large and the reviewer gets the log path, not its contents.
 
 `security-scan.ts` is a thin CLI over `automation/security-check.ts` — the *same* rule set the daemon runs, so your findings match its findings. Exit 1 means findings. Docs-only PRs skip `npm run check`, exactly as `automation/policy.ts` classifies them.
 
 Record both outcomes; the review prompt takes them as inputs (`baselineCheckStatus`, `securityCheckStatus`) and unresolved security findings are a blocking criterion.
 
-## 2. Review
+## 2. Review — handed to Command Code
 
-Read `automation/prompts/review.md` and execute it against this PR, substituting the placeholders with the real values you gathered (PR metadata, `docsOnly` from `classifyPaths` in `automation/policy.ts`, the two preflight outputs, changed files, diff).
+Write `tasks/TASK-cp-review-<PR>.md` in the PR checkout. It must stand alone:
 
-Two things that prompt makes explicit and reviewers routinely get wrong:
+- goal: review PR #<PR> by executing `automation/prompts/review.md`, with the placeholder values listed (PR metadata, `docsOnly` from `classifyPaths` in `automation/policy.ts`, the two preflight statuses, the check log path, `git diff <baseRef>...HEAD` as the diff command)
+- for a `fixed` verdict: make the fixes in the working tree, but do not commit, and do not touch `.env*`, lockfiles, `tasks/`, or files outside the PR's scope
+- output: the `CONTROL_PLANE_RESULT_START … END` block, verbatim, under `## Executor results`
+
+**Never commit this task file** — `tasks/TASK-*` is tracked in ERP and it would land on the PR head. Delete it and `tasks/.logs/TASK-cp-review-<PR>.*` when done.
+
+```bash
+bash <cmd-handoff-dir>/scripts/cmd-execute.sh --fresh cp-review-<PR>
+```
+
+`<cmd-handoff-dir>` is the `cmd-handoff` skill's directory. The exit codes are listed in that skill. Then read only the `## Executor results` section and `git diff --stat`; don't re-read the whole diff yourself unless step 3 needs it.
+
+The prompt makes two things explicit that reviewers routinely get wrong. Put both in the task file:
 
 - **Fix blockers inline rather than escalating.** Multi-file fixes are in scope. Escalate only for design judgment, product decisions, or missing context.
 - **Missing `docs/wiki/` coverage is yours to write, not to escalate.** CLAUDE.md's wiki governance is hard-enforced; the prompt's step 8 is the procedure.
 
-For a diff large or risky enough that you want a second, independent pass, run the `code-review` skill's Standards axis over the same range and fold its findings in. That skill is deeper on code smells and spec fidelity; this one owns the merge decision. They are complements — see "Relationship to `code-review`" below.
+For a diff large or risky enough that you want a second, independent pass, spawn a subagent with `model: "sonnet"` that runs the `code-review` skill's Standards axis over the same range, and fold its findings in. That skill is deeper on code smells and spec fidelity; this one owns the merge decision. They are complements — see "Relationship to `code-review`" below.
 
 ## 3. Verdict
 
-Produce the daemon's result block verbatim — same four actions, same JSON shape as the end of `automation/prompts/review.md`:
+Validate the executor's block before acting on it:
+
+- It parses as JSON with one of the four actions. If not, re-run the wrapper once without `--fresh` so the session resumes; if it fails again, run step 2 inline.
+- `fixed` → the working tree actually changed, only in-scope files, and `npm run check` + the security scan pass again. Otherwise feed the failures back as a `## Review round <n>` (max 3 rounds), then take over inline.
+- `approve` with failing preflight or unresolved security findings is invalid. Treat it as `escalate`.
+- `escalate` → check the named blocking issues yourself. If one is really a mechanical fix, send it back as a round instead of parking the PR.
+
+The final verdict is the daemon's result block, verbatim — same four actions, same JSON shape as the end of `automation/prompts/review.md`:
 
 ```
 CONTROL_PLANE_RESULT_START
@@ -65,7 +102,7 @@ Emit it even though no daemon is parsing it: it keeps your verdict auditable aga
 
 ## 4. Act on the verdict
 
-**`fixed`** — re-run `npm run check` and the security scan on your edits, then commit with the `commitMessage` and push to the head branch. Do not touch `.env*`, lockfiles, or files outside PR scope.
+**`fixed`** — after step 3's re-check, stage the in-scope files by path (never `git add -A`, never `tasks/`), commit with the `commitMessage`, and push to the head branch. Do not touch `.env*`, lockfiles, or files outside PR scope.
 
 **`approve` / `skip` / `fixed`-and-green** — apply the daemon's labels:
 
