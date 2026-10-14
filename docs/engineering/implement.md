@@ -38,7 +38,7 @@ A run has five steps, in order:
 4. Run the full test suite once, at the end.
 5. Run [code-review](https://aihero.dev/skills-code-review), then commit to the current branch.
 
-In this fork, GREEN steps go to Command Code via [cmd-handoff](../../skills/personal/cmd-handoff/SKILL.md). Independent seams run as parallel Sonnet subagents. RED, REFACTOR and judgment calls stay inline, and code-review runs on Sonnet.
+In this fork, GREEN steps go to Command Code via [cmd-handoff](../../skills/personal/cmd-handoff/SKILL.md) with `--no-review`, so each seam is accepted on tests + typecheck. Independent seams run as parallel Sonnet subagents. RED and judgment calls stay inline. Seams are committed first, then code-review runs once on Sonnet, against the fixed point recorded at the start. Refactoring and review fixes go back to Command Code as a resumable `<slug>-review` task.
 
 One run covers one ticket. The tickets [to-tickets](https://aihero.dev/skills-to-tickets) produces are tracer-bullet vertical slices sized to fit a single fresh [context window](https://www.aihero.dev/ai-coding-dictionary/context-window), so the intended rhythm is: clear context, implement one ticket, commit, clear again. Each ticket is self-contained, so you can discard the previous ticket's context.
 
