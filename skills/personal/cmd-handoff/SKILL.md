@@ -1,13 +1,13 @@
 ---
 name: cmd-handoff
 description: Implement a spec or tickets with the GREEN step handed off to the Command Code CLI on DeepSeek V4 Flash, reviewed by /code-review.
-argument-hint: "<task-slug> [--bg] [--fresh]"
+argument-hint: "<task-slug> [--bg] [--fresh] [--no-review]"
 disable-model-invocation: false
 ---
 
 Implement the work described by the user in the spec or tickets, the same way `/implement` does, except the GREEN step runs headless in the **Command Code** CLI (`commandcode`) on `deepseek/deepseek-v4-flash` instead of in this session or Pi. Each round is checked with `/code-review`.
 
-The first word of the arguments is the task slug (kebab-case). `--bg` runs the executor in the background; `--fresh` drops the saved Command Code session.
+The first word of the arguments is the task slug (kebab-case). `--bg` runs the executor in the background; `--fresh` drops the saved Command Code session. `--no-review` is for callers that review the whole branch once at the end (`/implement-spec`): it replaces step 4's `/code-review` with tests + typecheck and skips step 6's refactor. It is a skill flag only; never pass it to `cmd-execute.sh`, which rejects unknown flags.
 
 ## When to use
 
@@ -64,19 +64,25 @@ With `--bg`, it returns immediately. Tell the user to check `cmd-execute.sh stat
 
 ## 4. Review with /code-review
 
-Commit the executor's changes to the current branch (it's told not to commit). Then run `/code-review` on Sonnet (a subagent with `model: "sonnet"` that calls the Skill tool with "code-review") with fixed point `$BASE` and `tasks/TASK-<slug>.md` as the spec. It reports **Standards** and **Spec** separately. Do not merge or rerank the two.
+Commit the executor's changes to the current branch (it's told not to commit).
+
+With `--no-review`: run only the spec's test and typecheck commands. Failures go back as a round (step 5); passing means the seam is done. Skip the rest of this step.
+
+Otherwise, run `/code-review` on Sonnet (a subagent with `model: "sonnet"` that calls the Skill tool with "code-review") with fixed point `$BASE` and `tasks/TASK-<slug>.md` as the spec. It reports **Standards** and **Spec** separately. Do not merge or rerank the two.
 
 Also run the spec's test and typecheck commands yourself. Don't trust the executor's results section.
 
 ## 5. Loop, capped at 3 rounds
 
-If either axis has real findings or tests fail, append them under a `## Review round <n>` heading in the task file and re-run step 3 **without** `--fresh`. The saved session resumes, and the prompt tells it to address each finding.
+If either axis has real findings (with `--no-review`: if tests or typecheck fail), append them under a `## Review round <n>` heading in the task file and re-run step 3 **without** `--fresh`. The saved session resumes, and the prompt tells it to address each finding.
 
 Stop after round 3. Report the diff, the last review, and hand back to the user. Never loop silently. If Command Code keeps failing, finish the work inline.
 
 ## 6. REFACTOR and close out — inline
 
-Once green and clean, tidy it yourself. Run the full test suite once, then commit.
+With `--no-review`, skip the refactor: the caller's final review covers it. Commit and print the summary.
+
+Otherwise, once green and clean, tidy it yourself. Run the full test suite once, then commit.
 
 Print:
 
@@ -85,7 +91,7 @@ Print:
   Task:     tasks/TASK-<slug>.md
   Executor: commandcode (<model>), <n> round(s)
   Log:      tasks/.logs/TASK-<slug>.jsonl
-  Review:   Standards <n> findings · Spec <n> findings
+  Review:   Standards <n> findings · Spec <n> findings   (or "deferred to caller" with --no-review)
 ```
 
 ## Don't

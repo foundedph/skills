@@ -35,7 +35,7 @@ Implementers talk to the orchestrator through [context pointers](https://www.aih
 
 ## Routing in this fork
 
-Implementer and merger subagents run on Sonnet. Each implementer hands its GREEN steps to Command Code via [cmd-handoff](../../skills/personal/cmd-handoff/SKILL.md), with one session per ticket seam. The final review stays on Sonnet.
+Claude tokens go to judgment only. Implementer subagents run on Sonnet and write the RED tests; each GREEN step goes to Command Code via [cmd-handoff](../../skills/personal/cmd-handoff/SKILL.md) with `--no-review`, one session per ticket seam, accepted on tests + typecheck. Exploration runs on Haiku, and the orchestrator merges branches itself with Bash, so there is no merger subagent. `/code-review` runs once, on Sonnet, over the whole integration branch, and its findings go back to Command Code as a fix task. Per-seam review used to start two review subagents per seam per round, which made it the largest Claude cost.
 
 ## Common questions
 
