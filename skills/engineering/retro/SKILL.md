@@ -12,6 +12,13 @@ The user has asked for a **retrospective**. You are suggesting improvements to t
 
 2. Read the primary sources for the session the user specifies. This may mean searching through session logs on this machine. If the user doesn't specify a session, default to the current one.
 
+   <!-- LOCAL DELTA (foundedph, 2026-10-14): learning-proposal queue. Preserve across upstream re-syncs. -->
+   Also read the **learning-proposal queue** at `~/.claude/projects/<project-slug>/skills/proposals/*.md` (`<project-slug>` is the repo's absolute path with `/` and `.` replaced by `-`). The `skill-capture.sh` Stop hook writes one file per high-friction session slice:
+   - `status: pending`: a model already routed each learning to `ENFORCE` (a check to build), `ROUTE` (an edit to a named existing skill), or `NEW` (a new skill). Treat each route as a hypothesis: re-check it against the skill's current text.
+   - `status: raw`: verbatim corrections and tool errors, not yet routed. Route them yourself.
+
+   Fold every queued learning into the candidates for step 3. Route each one to the earliest option that fits: a structural check beats a prose rule, an edit to an existing skill beats a new skill, and a skill invoked in that session is the first owner to consider. After the user decides, set each file's `status:` to `applied`, `rejected` or `backlog`. Never delete a file.
+
 3. Look for candidates for improvement in these categories.
 
 - **Navigation**: how easy was it for the agent to find the right files? Are there hidden dependencies between files? Would a **navigation pointer** make it easier? _Use when_ the session took a long time to find a piece of information.
