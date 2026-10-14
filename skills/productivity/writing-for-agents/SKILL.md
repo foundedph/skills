@@ -1,7 +1,9 @@
 ---
 name: writing-for-agents
-description: Writing documents for agents. Use when creating or editing skills, or modifying AGENTS.md or CLAUDE.md.
+description: Writing documents for agents. Use when creating or editing skills (including rewriting a skill's description so it triggers better), or modifying AGENTS.md or CLAUDE.md.
 ---
+
+<!-- LOCAL DELTA (2026-10-13): description widened with trigger vocabulary from the Phase-1 trigger evals (backup: ~/.claude/backups/skill-desc-20261013). Keep across upstream re-syncs. -->
 
 Reference for writing any document an agent consumes: a skill, an `AGENTS.md` / `CLAUDE.md`, a doc reached by a pointer. The packaging differs; the writing does not: the same levers make each one predictable, since the agent takes the same _process_ every run rather than producing the same output.
 
