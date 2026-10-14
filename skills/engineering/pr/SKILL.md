@@ -1,6 +1,6 @@
 ---
 name: pr
-description: "Use when writing a PR body."
+description: "Use when writing a PR body: a pull request description, summary or test plan for the current branch."
 metadata:
   credits:
     skill: show-me
@@ -8,6 +8,8 @@ metadata:
     organisation: Humanlayer
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
+
+<!-- LOCAL DELTA (2026-10-13): description widened with trigger vocabulary from the Phase-1 trigger evals (backup: ~/.claude/backups/skill-desc-20261013). Keep across upstream re-syncs. -->
 
 Use this template for writing the PR body:
 

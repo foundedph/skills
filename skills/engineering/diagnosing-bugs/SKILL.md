@@ -1,7 +1,9 @@
 ---
 name: diagnosing-bugs
-description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow.
+description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this"/"figure out why", or reports something broken, throwing, erroring, failing (including a flaky or intermittently failing test) or slow, such as a regression after a deploy.
 ---
+
+<!-- LOCAL DELTA (2026-10-13): description widened with trigger vocabulary from the Phase-1 trigger evals (backup: ~/.claude/backups/skill-desc-20261013). Keep across upstream re-syncs. -->
 
 # Diagnosing Bugs
 

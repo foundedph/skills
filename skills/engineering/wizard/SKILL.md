@@ -1,7 +1,9 @@
 ---
 name: wizard
-description: Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration or cutover. Don't invoke this for steps the agent can perform itself.
+description: Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up or rotating credentials, tokens or CI secrets, walking an unfamiliar third-party dashboard ("guide me through…"), or running a one-off migration or cutover. Don't invoke this for steps the agent can perform itself.
 ---
+
+<!-- LOCAL DELTA (2026-10-13): description widened with trigger vocabulary from the Phase-1 trigger evals (backup: ~/.claude/backups/skill-desc-20261013). Keep across upstream re-syncs. -->
 
 # Wizard
 
