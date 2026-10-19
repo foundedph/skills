@@ -246,8 +246,18 @@ finalize_run() {
 
 # ------------- worktrees -------------
 
+# Slugs become a path segment under the worktree base: no separators, no "..".
+valid_slug() {
+  local slug="$1"
+  if ! [[ "$slug" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$slug" == *..* ]]; then
+    echo "issue-loop: invalid slug '$slug' (allowed: A-Z a-z 0-9 . _ -, no '..')" >&2
+    exit 2
+  fi
+}
+
 worktree_add() {
   local rpath="$1" branch="$2" slug="$3"
+  valid_slug "$slug"
   local rcfg; rcfg=$(repo_config "$(cd "$rpath" && gh repo view --json nameWithOwner -q .nameWithOwner)")
   local base; base=$(echo "$rcfg" | jq -r '.worktree_base // ".claude/worktrees"')
   local wt="$rpath/$base/$slug"
@@ -259,11 +269,20 @@ worktree_add() {
 
 worktree_remove() {
   local rpath="$1" slug="$2"
+  valid_slug "$slug"
   local rcfg; rcfg=$(repo_config "$(cd "$rpath" && gh repo view --json nameWithOwner -q .nameWithOwner)")
   local base; base=$(echo "$rcfg" | jq -r '.worktree_base // ".claude/worktrees"')
   local wt="$rpath/$base/$slug"
-  (cd "$rpath" && git worktree remove "$wt" --force 2>/dev/null) || true
-  rm -rf "$wt" 2>/dev/null || true
+  # Resolve symlinks and refuse to delete anything that is not strictly inside the base.
+  local base_real wt_real
+  base_real=$(cd "$rpath/$base" 2>/dev/null && pwd -P) || return 0
+  wt_real=$(cd "$wt" 2>/dev/null && pwd -P) || return 0
+  case "$wt_real/" in
+    "$base_real"/?*/) ;;
+    *) echo "issue-loop: refusing to remove $wt_real — not under $base_real" >&2; exit 2 ;;
+  esac
+  (cd "$rpath" && git worktree remove "$wt_real" --force 2>/dev/null) || true
+  rm -rf "$wt_real" 2>/dev/null || true
 }
 
 # ------------- notify -------------

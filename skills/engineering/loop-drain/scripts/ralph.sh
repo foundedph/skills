@@ -153,6 +153,33 @@ queue() {
 
 # ------------- parent issue -------------
 
+# Repo role of a GitHub login (admin|maintain|write|triage|read); "none" if unknown.
+author_permission() {
+  local repo="$1" login="$2"
+  [ -n "$login" ] || { echo none; return; }
+  gh api "repos/$repo/collaborators/$login/permission" -q '.role_name // .permission' 2>/dev/null || echo none
+}
+
+# Anyone can write "## Parent #N" in an issue body, so keep only children that a
+# maintainer filed (author has write/maintain/admin) or that are native GitHub
+# sub-issues of the parent. Reads issue numbers on stdin, prints the kept ones.
+trusted_children() {
+  local repo="$1" parent="$2"
+  local subs; subs=$(gh api "repos/$repo/issues/$parent/sub_issues" --paginate -q '.[].number' 2>/dev/null || echo "")
+  local n login perm
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    if printf '%s\n' "$subs" | grep -qx "$n"; then echo "$n"; continue; fi
+    login=$(gh issue view "$n" --repo "$repo" --json author -q .author.login 2>/dev/null || echo "")
+    [ -n "$login" ] || { echo "ralph: skipping #$n — author lookup failed (fail-closed)" >&2; continue; }
+    perm=$(author_permission "$repo" "$login")
+    case "$perm" in
+      admin|maintain|write) echo "$n" ;;
+      *) echo "ralph: skipping #$n — author @${login:-unknown} has '$perm' access and it is not a sub-issue of #$parent" >&2 ;;
+    esac
+  done
+}
+
 parent_children() {
   local parent="${1:?usage: parent <issue>}"
   local repo; repo=$(resolve_repo)
@@ -172,10 +199,11 @@ parent_children() {
           )
         | .[].number
       ' || echo "")
+  [ -n "$matches" ] && matches=$(echo "$matches" | trusted_children "$repo" "$parent")
 
   if [ -n "$matches" ]; then
     local count; count=$(echo "$matches" | wc -l | tr -d '[:space:]')
-    echo "ralph: found $count children via reverse-link (## Parent → #$parent):"
+    echo "ralph: found $count trusted children via reverse-link (## Parent → #$parent):"
     while IFS= read -r n; do
       [ -z "$n" ] && continue
       local title; title=$(gh issue view "$n" --repo "$repo" --json title -q .title 2>/dev/null)
@@ -201,13 +229,20 @@ parent_children() {
   local body_refs; body_refs=$(gh issue view "$parent" --repo "$repo" --json body -q .body \
     | grep -oE '^[[:space:]]*-[[:space:]]*\[[ x]\][[:space:]]*#[0-9]+' \
     | grep -oE '#[0-9]+' | tr -d '#' | sort -un || echo "")
+  [ -n "$body_refs" ] && body_refs=$(echo "$body_refs" | trusted_children "$repo" "$parent")
 
   if [ -n "$body_refs" ]; then
-    echo "ralph: found children via parent body task list: $body_refs"
+    echo "ralph: found trusted children via parent body task list:"
+    for n in $body_refs; do
+      local title; title=$(gh issue view "$n" --repo "$repo" --json title -q .title 2>/dev/null)
+      echo "  #$n  $title"
+    done
     if [ "$DRY_RUN" = "1" ]; then
       echo "ralph: [DRY-RUN] no labels applied."
       return 0
     fi
+    gh_auth_check
+    confirm_batch "$(echo "$body_refs" | wc -l | tr -d '[:space:]')" "label as ralph:ready"
     for n in $body_refs; do label_one "$repo" "$n" || true; done
     wake_quiet
     return
