@@ -9,15 +9,15 @@ You are standing in for the control-plane daemon (`automation/`) on one pull req
 
 ## Routing
 
-<!-- LOCAL DELTA (foundedph, 2026-10-14): the review and blocker fixes go to
-     Command Code via /cmd-handoff's wrapper to save Claude tokens. Preserve this
-     section across upstream re-syncs. -->
+<!-- LOCAL DELTA (foundedph, 2026-10-14, updated 2026-10-19): the review and blocker
+     fixes go to Command Code via /cmd-handoff's wrapper to save Claude tokens. Preserve
+     this section across upstream re-syncs. -->
 
-The daemon's own reviewer is Pi on DeepSeek, so this stand-in hands the same job to Command Code (`deepseek/deepseek-v4-flash`). Claude keeps the mechanical and authority steps, which are cheap and must be deterministic:
+The daemon's own reviewer is Command Code (`agentBackend: "commandcode"` since #5687, v4-flash escalating to v4.1-flash, Pi as fallback), so this stand-in hands the same job to Command Code (`deepseek/deepseek-v4-flash`). Claude keeps the mechanical and authority steps, which are cheap and must be deterministic:
 
 | Step | Runs on |
 |---|---|
-| 0 safety check, 1 preflight, 3 verdict validation, 4 labels/comments, 5 merge gates + merge | This session (run it on Sonnet; none of it needs Opus) |
+| 0 safety check, 1 preflight, 3 verdict validation, 4 labels/comments, 5 merge gates + merge | This session, on Sonnet (Haiku at the `red` budget tier). None of it needs Opus. |
 | 2 review against `automation/prompts/review.md`, and the edits for a `fixed` verdict | Command Code, through the `cmd-handoff` skill's `scripts/cmd-execute.sh` |
 | An `escalate` verdict | Re-checked by this session on the named issue only, before parking the PR |
 
@@ -110,7 +110,7 @@ Emit it even though no daemon is parsing it: it keeps your verdict auditable aga
 gh pr edit <PR> --add-label pi-approved --remove-label pi-reviewing
 ```
 
-Label names come from `automation/label-utils.ts` and depend on the configured backend (`pi` today, hence `pi-approved`). Read that file rather than assuming.
+Label names come from `automation/label-utils.ts` and depend on the configured backend. The `commandcode` backend reuses the `pi-*` names (`pi-reviewing`, `pi-approved`). Read that file rather than assuming.
 
 **`escalate`** — `gh pr edit <PR> --add-label needs-human-review` and post a comment naming the blocking issues concretely. Do not leave `pi-reviewing` behind.
 
