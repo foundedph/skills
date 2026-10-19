@@ -44,7 +44,7 @@ if [ "$curr_diff_empty" = "true" ]; then
 fi
 
 # 2. Test file modified
-test_modified=$(jq -r '[.diff_files[] | select(test("^tests/|/__tests__/|\\.test\\."))] | length' "$CURR")
+test_modified=$(jq -r '[.diff_files[] | select(test("(^|/)(tests?|__tests__|spec)/|\\.(test|spec)\\.|(^|/)test_[^/]*\\.py$|_test\\.(go|py)$"; "i"))] | length' "$CURR")
 if [ "$test_modified" -gt 0 ]; then
   echo "stuck:test_file_modified"
   exit 2
