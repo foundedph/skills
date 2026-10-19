@@ -45,18 +45,21 @@ Work in a worktree of the PR head — never in a dirty checkout:
 gh pr checkout <PR>
 ```
 
-Then run the two preflight gates:
+Then run the preflight gates:
 
 ```bash
 npm run check > /tmp/cp-check-<PR>.log 2>&1; echo "check exit $?"; tail -40 /tmp/cp-check-<PR>.log
 node --import tsx automation/scripts/security-scan.ts <baseRef>
+node --import tsx scripts/lint-floor-guard.ts --base origin/<baseRef>
 ```
 
 Read only the tail of the check log (grep it for a failing group if needed). The full output is large and the reviewer gets the log path, not its contents.
 
 `security-scan.ts` is a thin CLI over `automation/security-check.ts` — the *same* rule set the daemon runs, so your findings match its findings. Exit 1 means findings. Docs-only PRs skip `npm run check`, exactly as `automation/policy.ts` classifies them.
 
-Record both outcomes; the review prompt takes them as inputs (`baselineCheckStatus`, `securityCheckStatus`) and unresolved security findings are a blocking criterion.
+`lint-floor-guard.ts` reports any check the PR weakened (see `CONSTRAINTS.md` → Floor); the review prompt's task step 10 says how to resolve each finding. Exit 1 means findings, 2 means the base ref is missing.
+
+Record the first two outcomes; the review prompt takes them as inputs (`baselineCheckStatus`, `securityCheckStatus`) and unresolved security findings are a blocking criterion.
 
 ## 2. Review — handed to Command Code
 
@@ -77,7 +80,7 @@ bash <cmd-handoff-dir>/scripts/cmd-execute.sh --fresh cp-review-<PR>
 The prompt makes two things explicit that reviewers routinely get wrong. Put both in the task file:
 
 - **Fix blockers inline rather than escalating.** Multi-file fixes are in scope. Escalate only for design judgment, product decisions, or missing context.
-- **Missing `docs/wiki/` coverage is yours to write, not to escalate.** CLAUDE.md's wiki governance is hard-enforced; the prompt's step 8 is the procedure.
+- **Missing `docs/wiki/` coverage is yours to write, not to escalate.** CLAUDE.md's wiki governance is hard-enforced; the prompt's step 9 is the procedure.
 
 For a diff large or risky enough that you want a second, independent pass, spawn a subagent with `model: "sonnet"` that runs the `code-review` skill's Standards axis over the same range, and fold its findings in. That skill is deeper on code smells and spec fidelity; this one owns the merge decision. They are complements — see "Relationship to `code-review`" below.
 
