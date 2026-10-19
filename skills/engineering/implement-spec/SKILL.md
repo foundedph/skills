@@ -30,8 +30,8 @@ Claude tokens go to judgment only: test authorship, orchestration, and **one** r
 | Exploration subagent | Agent tool with `model: "haiku"` (`"sonnet"` if the exploration needs judgment). Never let it inherit the session model. |
 | Implementer subagents | Agent tool with `model: "sonnet"`. They write RED tests; GREEN goes to `/cmd-handoff --no-review`. |
 | Merging into the integration branch | The orchestrator, with Bash. No merger subagent. |
-| Review | One Sonnet subagent running `/code-review` on the whole integration branch, at the end. Never per seam, never handed off. |
-| Review fixes | Command Code, via a `/cmd-handoff` fix task. Sonnet only re-checks. |
+| Review | One Command Code review (`cmd-execute.sh --review --base <integration base> <slug>`, v4.1) on the whole integration branch, at the end. Never per seam. You run tsc + the full suite yourself; `reviewer-deep` only on `review-route.sh` risk signals. |
+| Review fixes | Command Code, via a `/cmd-handoff` fix task. Re-check with tests + typecheck. |
 
 - Run implementers across the frontier **in parallel, in the background**. Command Code sessions are keyed by task slug, so concurrent handoffs don't collide.
 - If `commandcode status` is not authenticated, ask the user to run `commandcode login`; until then implementers build GREEN inline. If a handoff fails after its 3 rounds, the implementer finishes that seam inline.

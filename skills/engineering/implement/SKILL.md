@@ -17,7 +17,7 @@ Drive the work test-first by calling the Skill tool with "tdd" (red → green) a
 <!-- LOCAL DELTA (foundedph, 2026-10-08, tightened 2026-10-14): upstream implements
      inline. We hand the GREEN step and review fixes to Command Code (DeepSeek V4
      Flash) via /cmd-handoff to save Claude tokens, keep judgment inline, and run
-     ONE review on Sonnet at the end. Preserve this section across upstream re-syncs. -->
+     ONE review at the end on Command Code v4.1 (`cmd-execute.sh --review`), Claude-run tsc/tests mandatory (2026-10-19). Preserve this section across upstream re-syncs. -->
 
 Split the work by who is best at it:
 
@@ -25,7 +25,7 @@ Split the work by who is best at it:
 |---|---|---|
 | **RED**: write the failing test | **You, inline** | Test authorship encodes intent and is never handed off. |
 | **GREEN**: make it pass | **Command Code** (`deepseek/deepseek-v4-flash`) | Call the Skill tool with "cmd-handoff" and args `<slug> --no-review`, one seam per task slug. A seam is accepted on its tests + typecheck; there is no per-seam `/code-review`. |
-| **Review** (incl. refactoring) | **Sonnet subagent, once** | Refactoring is not part of the red → green loop; it belongs to review. See "Verify and close out". |
+| **Review** (incl. refactoring) | **Command Code v4.1, once** (`cmd-execute.sh --review`) | Refactoring is not part of the red → green loop; it belongs to review. See "Verify and close out". |
 | **Review fixes** | **Command Code** | A `<slug>-review` task, resumed round by round. See "Verify and close out". |
 
 Stay inline, without handing off, for judgment rather than typing: diagnosing failures,
@@ -60,9 +60,12 @@ Run typechecking regularly, single test files regularly, and the full test suite
 Commit the seams before reviewing: `/code-review` diffs `$BASE...HEAD`, so uncommitted
 work is invisible to it.
 
-Then review **once**, on Sonnet: spawn a subagent with the Agent tool and
-`model: "sonnet"` whose prompt is to call the Skill tool with "code-review" against
-`$BASE`. This is the only `/code-review` in the run.
+Then review **once**, on Command Code: run the `cmd-handoff` skill's
+`scripts/cmd-execute.sh --review --base "$BASE" <slug>` and read
+`tasks/.logs/TASK-<slug>.review.md`. This is the only review in the run. Run
+`npx tsc --noEmit` and the full test suite yourself regardless, because the review
+misses compile errors. When `review-route.sh` flags risk (auth, RLS, SQL, payroll,
+payments, large cross-file diffs), add the `reviewer-deep` agent on the flagged files.
 
 If it has real findings:
 

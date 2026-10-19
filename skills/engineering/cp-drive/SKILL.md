@@ -9,15 +9,15 @@ You are standing in for the control-plane daemon (`automation/`) on one pull req
 
 ## Routing
 
-<!-- LOCAL DELTA (foundedph, 2026-10-14): the review and blocker fixes go to
-     Command Code via /cmd-handoff's wrapper to save Claude tokens. Preserve this
-     section across upstream re-syncs. -->
+<!-- LOCAL DELTA (foundedph, 2026-10-14, updated 2026-10-19): the review and blocker
+     fixes go to Command Code via /cmd-handoff's wrapper to save Claude tokens. Preserve
+     this section across upstream re-syncs. -->
 
-The daemon's own reviewer is Pi on DeepSeek, so this stand-in hands the same job to Command Code (`deepseek/deepseek-v4-flash`). Claude keeps the mechanical and authority steps, which are cheap and must be deterministic:
+The daemon's own reviewer is Command Code (`agentBackend: "commandcode"` since #5687, v4-flash escalating to v4.1-flash, Pi as fallback), so this stand-in hands the same job to Command Code (`deepseek/deepseek-v4-flash`). Claude keeps the mechanical and authority steps, which are cheap and must be deterministic:
 
 | Step | Runs on |
 |---|---|
-| 0 safety check, 1 preflight, 3 verdict validation, 4 labels/comments, 5 merge gates + merge | This session (run it on Sonnet; none of it needs Opus) |
+| 0 safety check, 1 preflight, 3 verdict validation, 4 labels/comments, 5 merge gates + merge | This session, on Sonnet (Haiku at the `red` budget tier). None of it needs Opus. |
 | 2 review against `automation/prompts/review.md`, and the edits for a `fixed` verdict | Command Code, through the `cmd-handoff` skill's `scripts/cmd-execute.sh` |
 | An `escalate` verdict | Re-checked by this session on the named issue only, before parking the PR |
 
@@ -45,18 +45,21 @@ Work in a worktree of the PR head — never in a dirty checkout:
 gh pr checkout <PR>
 ```
 
-Then run the two preflight gates:
+Then run the preflight gates:
 
 ```bash
 npm run check > /tmp/cp-check-<PR>.log 2>&1; echo "check exit $?"; tail -40 /tmp/cp-check-<PR>.log
 node --import tsx automation/scripts/security-scan.ts <baseRef>
+node --import tsx scripts/lint-floor-guard.ts --base origin/<baseRef>
 ```
 
 Read only the tail of the check log (grep it for a failing group if needed). The full output is large and the reviewer gets the log path, not its contents.
 
 `security-scan.ts` is a thin CLI over `automation/security-check.ts` — the *same* rule set the daemon runs, so your findings match its findings. Exit 1 means findings. Docs-only PRs skip `npm run check`, exactly as `automation/policy.ts` classifies them.
 
-Record both outcomes; the review prompt takes them as inputs (`baselineCheckStatus`, `securityCheckStatus`) and unresolved security findings are a blocking criterion.
+`lint-floor-guard.ts` reports any check the PR weakened (see `CONSTRAINTS.md` → Floor); the review prompt's task step 10 says how to resolve each finding. Exit 1 means findings, 2 means the base ref is missing.
+
+Record the first two outcomes; the review prompt takes them as inputs (`baselineCheckStatus`, `securityCheckStatus`) and unresolved security findings are a blocking criterion.
 
 ## 2. Review — handed to Command Code
 
@@ -77,7 +80,7 @@ bash <cmd-handoff-dir>/scripts/cmd-execute.sh --fresh cp-review-<PR>
 The prompt makes two things explicit that reviewers routinely get wrong. Put both in the task file:
 
 - **Fix blockers inline rather than escalating.** Multi-file fixes are in scope. Escalate only for design judgment, product decisions, or missing context.
-- **Missing `docs/wiki/` coverage is yours to write, not to escalate.** CLAUDE.md's wiki governance is hard-enforced; the prompt's step 8 is the procedure.
+- **Missing `docs/wiki/` coverage is yours to write, not to escalate.** CLAUDE.md's wiki governance is hard-enforced; the prompt's step 9 is the procedure.
 
 For a diff large or risky enough that you want a second, independent pass, spawn a subagent with `model: "sonnet"` that runs the `code-review` skill's Standards axis over the same range, and fold its findings in. That skill is deeper on code smells and spec fidelity; this one owns the merge decision. They are complements — see "Relationship to `code-review`" below.
 
@@ -110,7 +113,7 @@ Emit it even though no daemon is parsing it: it keeps your verdict auditable aga
 gh pr edit <PR> --add-label pi-approved --remove-label pi-reviewing
 ```
 
-Label names come from `automation/label-utils.ts` and depend on the configured backend (`pi` today, hence `pi-approved`). Read that file rather than assuming.
+Label names come from `automation/label-utils.ts` and depend on the configured backend. The `commandcode` backend reuses the `pi-*` names (`pi-reviewing`, `pi-approved`). Read that file rather than assuming.
 
 **`escalate`** — `gh pr edit <PR> --add-label needs-human-review` and post a comment naming the blocking issues concretely. Do not leave `pi-reviewing` behind.
 

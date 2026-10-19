@@ -68,9 +68,17 @@ Commit the executor's changes to the current branch (it's told not to commit).
 
 With `--no-review`: run only the spec's test and typecheck commands. Failures go back as a round (step 5); passing means the seam is done. Skip the rest of this step.
 
-Otherwise, run `/code-review` on Sonnet (a subagent with `model: "sonnet"` that calls the Skill tool with "code-review") with fixed point `$BASE` and `tasks/TASK-<slug>.md` as the spec. It reports **Standards** and **Spec** separately. Do not merge or rerank the two.
+Otherwise, review on Command Code, read-only:
 
-Also run the spec's test and typecheck commands yourself. Don't trust the executor's results section.
+```bash
+bash ~/.claude/skills/cmd-handoff/scripts/cmd-execute.sh --review --base "$BASE" <slug>
+```
+
+It runs `deepseek/deepseek-v4.1-flash` in plan mode and writes `tasks/.logs/TASK-<slug>.review.md` with **Standards** and **Spec** sections. Don't merge or rerank the two. Read the file and drop findings you can disprove in one look.
+
+**Always** run the spec's test and typecheck commands yourself (`npx tsc --noEmit`, plus `npm run check` before the PR). Don't trust the executor's results section. In the 2026-10-19 benchmark, neither v4.1 nor Sonnet caught a TS2802 compile error, and v4.1 called an unverified CLI output format "sound". Review finds design and spec bugs. Only the compiler and the tests find the rest.
+
+Escalate to Claude only on risk: when `review-route.sh` flags auth, RLS, SQL, payroll, payments or a large cross-file diff, also run the `reviewer-deep` agent on the flagged files.
 
 ## 5. Loop, capped at 3 rounds
 

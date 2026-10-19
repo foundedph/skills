@@ -10,6 +10,15 @@ Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
 Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
 
+<!-- LOCAL DELTA (foundedph, 2026-10-19): in SignPortal-style repos, run this review on
+     Command Code, not Claude: `bash ~/.claude/skills/cmd-handoff/scripts/cmd-execute.sh
+     --review --base <fixed-point> <slug>` (deepseek-v4.1-flash, read-only, both axes in one
+     report at tasks/.logs/TASK-<slug>.review.md). Claude only ranks the findings. The
+     orchestrator MUST also run tsc + tests itself: in the 2026-10-19 benchmark neither
+     v4.1 nor Sonnet caught a TS2802 compile error. Use the Claude sub-agent flow below
+     only when Command Code is unavailable, or via `reviewer-deep` on risk signals.
+     Preserve across upstream re-syncs. -->
+
 The issue tracker should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
 
 ## Process
