@@ -1,0 +1,153 @@
+# Model Orchestration Contract
+
+The TDD cycle inside `/issue-loop` is split across three model roles. Each handoff has a strict contract — follow it exactly. The contract is what prevents the executor from "horizontal slicing" (writing all tests + all code in one shot, producing imagined-behavior tests).
+
+## Roles
+
+| Role | Model | Invocation |
+|------|-------|------------|
+| Orchestrator | Current Claude session (Opus or Sonnet) | The `/issue-loop` skill body |
+| Test Writer (RED) | Same Claude session | Direct file edits via Edit/Write |
+| Implementer (GREEN) | Command Code (`deepseek/deepseek-v4-flash`) | `bash ~/.claude/skills/cmd-handoff/scripts/cmd-execute.sh <slug>` |
+| Refactor Auditor | `reviewer` agent (Sonnet) | Agent tool with `subagent_type: reviewer` |
+| Refactor Fixer | `implementer` agent (Sonnet) | Agent tool with `subagent_type: implementer` |
+| PR Reviewer | `reviewer` or `reviewer-deep` | Already routed by `scripts/review-route.sh` (existing) |
+
+## RED phase contract (Claude writes test)
+
+Claude writes ONE failing test for ONE behavior. The test must:
+
+1. Live in the repo's standard test path (e.g., `tests/e2e/<feature>.test.sh` for browser tests, or unit test framework conventions)
+2. Exercise behavior through public interfaces — never call private functions, never mock internal collaborators (per `~/.claude/skills/tdd/SKILL.md` philosophy)
+3. Have one named assertion that maps to the issue acceptance criterion verbatim
+4. Be runnable and currently failing — verify with `npm run check && <test command>`
+
+Required gate before proceeding to GREEN:
+- Test count delta = +1
+- Failing test count delta = +1
+- The new test fails with a meaningful error (compile error or assertion error — not "file not found")
+
+If the gate fails, abort the cycle and notify. Do not start the GREEN phase on a broken test setup.
+
+## GREEN phase contract
+
+**Command Code implements at every tier** (`cmd-execute.sh <slug>`); the budget tier only picks Claude's orchestration model. Pi (`/auto-handoff`) is the fallback when `commandcode status` fails.
+<!-- LOCAL DELTA 2026-10-19: CC-first (docs/context/ai-workflow.md). Was: inline at green/yellow, Pi at red. Preserve across upstream re-syncs. -->
+
+Claude writes a delegation task spec at `tasks/TASK-issue-<N>-<behavior-slug>.md` with:
+
+```markdown
+# Issue #<N> — <behavior name>
+
+## Constraint (NON-NEGOTIABLE)
+You MUST NOT modify any file under `tests/`. The test is the spec.
+You MUST NOT add features beyond what is needed to pass this one test.
+You MUST NOT touch any other test file.
+
+## Goal
+The test at `<test_path>:<line>` is currently failing with:
+
+```
+<paste exact failure output>
+```
+
+Make this test pass. Stop as soon as it passes.
+
+## Acceptance
+- `<exact test command>` exits 0
+- No other test that previously passed now fails
+- No file under `tests/` has been modified
+- The diff is minimal: only the files needed to satisfy the test
+
+## Context
+- Issue body: <paste relevant Acceptance Criteria>
+- Wiki page (if applicable): docs/wiki/<feature>.md
+```
+
+Then invoke:
+```bash
+codex-execute issue-<N>-<behavior-slug>
+```
+
+After the executor returns:
+1. Run the test command
+2. If passing → proceed to REFACTOR
+3. If failing → run progress detector (see progress-detector.md)
+4. If progressing → re-invoke the executor with appended failure output (up to budget)
+5. If stuck → bail, notify, stop loop
+
+The executor sees only the failure of ONE test. It cannot see other behaviors in the issue. This is the structural anti-horizontal-slicing guard.
+
+## REFACTOR phase contract (reviewer agent)
+
+Invoke the `reviewer` agent with this prompt:
+
+```
+Review the diff the executor produced for issue #<N>, behavior "<name>".
+
+Diff:
+<paste git diff HEAD>
+
+Test that must keep passing:
+<test_path>
+
+Look for:
+- Duplication that should be extracted
+- Module depth (small interface, deep implementation)
+- Over-broad changes beyond what the test needs
+- Style inconsistency with surrounding code
+
+Report:
+- severity: "clean" | "should_fix" | "must_fix"
+- if not clean: bullet list of specific fixes with file:line
+```
+
+If `severity == "must_fix"`:
+
+Invoke `implementer` agent with the bullet list. Run the test command after each batch of fixes. The test MUST stay green.
+
+If `severity == "should_fix"`: log the suggestions to the run log, but advance — these are nice-to-haves, not blockers.
+
+## PR open
+
+After all behaviors in the issue are GREEN + clean:
+
+1. `git add -A && git commit` (if the executor left uncommitted state)
+2. `gh pr create --base <config.pr_base> --title "<#N>: <issue.title>" --body "$(<PR body)"`
+
+PR body template:
+```markdown
+Closes #<N>
+
+## Summary
+<1-line summary from issue.title>
+
+## Implementation
+<1-2 sentences: which file(s) changed and why>
+
+## Test
+- New test: `<test_path>` — verifies <behavior_name>
+- All existing tests still pass
+
+## Notes
+Generated by /issue-loop. Executor GREEN attempts: <count>. Refactor verdict: <severity>.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+```
+
+The control plane (Command Code backend) picks it up from here.
+
+## Why the contracts matter
+
+Each contract removes a specific failure mode:
+
+| Failure mode | Prevented by |
+|--------------|--------------|
+| The executor writes tests that test imagined behavior | RED phase owned by Claude only |
+| The executor games the test by modifying it | GREEN contract: must not modify `tests/` |
+| The executor over-implements (adds unrequested features) | GREEN contract: minimal diff, stop when test passes |
+| Refactor breaks the green state | REFACTOR re-runs tests after each fix batch |
+| Drift between PR description and actual change | PR body template populated from run log, not narrated |
+
+The orchestrator's job is to enforce these boundaries. If a phase deviates from its contract, abort — don't paper over it.
