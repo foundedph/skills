@@ -4,3 +4,4 @@ Skills tied to my own setup, not promoted in the plugin.
 
 - **[cmd-handoff](./cmd-handoff/SKILL.md)** — Implement a spec with the GREEN step handed to the Command Code CLI (DeepSeek V4 Flash), reviewed by `/code-review` on Sonnet. Default GREEN path for `/implement` and `/implement-spec`.
 - **[obsidian-vault](./obsidian-vault/SKILL.md)** — Search, create, and manage notes in an Obsidian vault with wikilinks and index notes.
+- **[herdr](./herdr/SKILL.md)**: Drive Herdr panes/tabs/agents from the CLI (split panes, start and prompt other agents, run commands, read output). Shared by Claude Code, Codex, Pi, Command Code, OpenCode via symlinks.
