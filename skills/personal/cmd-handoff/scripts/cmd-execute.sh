@@ -21,7 +21,16 @@
 #   3 finished but results section not populated
 #   4 commandcode exited non-zero
 #   5 hard error event / turn cap hit
+#
+# Herdr: when run from a Herdr-managed pane (HERDR_ENV=1, never Claude Desktop),
+# sync and --review runs re-launch themselves in a pane of a "handoffs" tab so
+# the user can watch, wait for it, and exit with the child's code. At most
+# CMD_PANE_CAP (default 4) handoff panes are open at once; extra runs queue.
+# The pane closes on exit 0 and stays open on failure. --no-pane or
+# CMD_NO_PANE=1 runs inline as before.
 set -euo pipefail
+ORIG_ARGS=("$@")
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 
 MODEL="${CMD_MODEL:-deepseek/deepseek-v4-flash}"
 TIMEOUT="${CMD_EXECUTE_TIMEOUT:-}"
@@ -44,6 +53,7 @@ while [ $# -gt 0 ]; do
     --review) REVIEW=1 ;;
     --base) BASE="$2"; shift ;;
     --max-turns) MAX_TURNS="$2"; shift ;;
+    --no-pane) CMD_NO_PANE=1 ;;
     status) MODE=status ;;
     -*) echo "unknown flag: $1" >&2; exit 1 ;;
     *) SLUG="$1" ;;
@@ -80,6 +90,82 @@ commandcode status 2>&1 | grep -q "Authentication verified" || { echo "commandco
 # Reviews ran 6-12 min in benchmarks; implementation rounds default to 10.
 [ -n "$TIMEOUT" ] || { [ "$REVIEW" = 1 ] && TIMEOUT=1200 || TIMEOUT=600; }
 
+# Only inside a live Herdr pane, never Claude Desktop, never recursively.
+in_herdr() {
+  [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] && [ -n "${HERDR_WORKSPACE_ID:-}" ] || return 1
+  [ "${CMD_IN_PANE:-}" != 1 ] && [ "${CMD_NO_PANE:-}" != 1 ] || return 1
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in *desktop*) return 1 ;; esac
+  command -v herdr >/dev/null && command -v jq >/dev/null || return 1
+  herdr pane current --current >/dev/null 2>&1
+}
+
+# Prints the pane ID for this handoff, or fails (caller then runs inline).
+claim_handoff_pane() {
+  local cap="${CMD_PANE_CAP:-4}" lock="${TMPDIR:-/tmp}/cmd-execute-herdr.lock"
+  local tab count pane last dir waited=0
+  while :; do
+    # mkdir is atomic; break a lock left by a killed run after 60s.
+    until mkdir "$lock" 2>/dev/null; do
+      [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ] && rmdir "$lock" 2>/dev/null
+      sleep 1
+    done
+    tab="$(herdr tab list --workspace "$HERDR_WORKSPACE_ID" | jq -r '[.result.tabs[] | select(.label=="handoffs")][0].tab_id // empty')" \
+      || { rmdir "$lock"; return 1; }
+    if [ -z "$tab" ]; then
+      pane="$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$ROOT" --label handoffs | jq -r '.result.root_pane.pane_id // empty')"
+      rmdir "$lock"; [ -n "$pane" ] && echo "$pane"; [ -n "$pane" ]; return
+    fi
+    count="$(herdr pane list --workspace "$HERDR_WORKSPACE_ID" | jq --arg t "$tab" '[.result.panes[] | select(.tab_id==$t)] | length')" \
+      || { rmdir "$lock"; return 1; }
+    if [ "$count" -lt "$cap" ]; then
+      last="$(herdr pane list --workspace "$HERDR_WORKSPACE_ID" | jq -r --arg t "$tab" '[.result.panes[] | select(.tab_id==$t)][-1].pane_id')"
+      [ "$count" = 1 ] && dir=right || dir=down
+      pane="$(herdr pane split "$last" --direction "$dir" --cwd "$ROOT" --no-focus | jq -r '.result.pane.pane_id // empty')"
+      rmdir "$lock"; [ -n "$pane" ] && echo "$pane"; [ -n "$pane" ]; return
+    fi
+    rmdir "$lock"
+    [ "$waited" = 0 ] && echo "$cap handoff panes busy; '$SLUG' queued" >&2
+    waited=1; sleep 5
+  done
+}
+
+if [ "$MODE" = sync ] && in_herdr; then
+  if PANE="$(claim_handoff_pane)"; then
+    EXIT_FILE="$ROOT/$LOG_DIR/TASK-${SLUG}.exit"
+    LAUNCHER="$ROOT/$LOG_DIR/TASK-${SLUG}.pane.sh"
+    rm -f "$EXIT_FILE"
+    # A launcher file carries the caller's env and dodges the tty line-length limit.
+    {
+      echo "cd $(printf %q "$ROOT")"
+      for v in PATH CMD_MODEL CMD_REVIEW_MODEL CMD_EXECUTE_TIMEOUT CMD_MAX_TURNS; do
+        [ -n "${!v:-}" ] && echo "export $v=$(printf %q "${!v}")"
+      done
+      printf 'CMD_IN_PANE=1 bash %q' "$SELF"; printf ' %q' "${ORIG_ARGS[@]}"; echo
+      echo "echo \$? > $(printf %q "$EXIT_FILE")"
+    } > "$LAUNCHER"
+    herdr pane rename "$PANE" "cc-$SLUG" >/dev/null 2>&1 || true
+    herdr pane run "$PANE" "bash $(printf %q "$LAUNCHER")" >/dev/null
+    echo "Command Code for '$SLUG' running in Herdr pane $PANE"
+    deadline=$(( $(date +%s) + TIMEOUT + 300 ))
+    until [ -s "$EXIT_FILE" ]; do
+      if ! herdr pane get "$PANE" >/dev/null 2>&1; then
+        echo "Herdr pane $PANE closed before '$SLUG' finished; see $STATUS_FILE" >&2; exit 1
+      fi
+      [ "$(date +%s)" -lt "$deadline" ] || { echo "no exit code from pane $PANE after $((TIMEOUT + 300))s" >&2; exit 2; }
+      sleep 3
+    done
+    code="$(cat "$EXIT_FILE")"; rm -f "$EXIT_FILE" "$LAUNCHER"
+    cat "$STATUS_FILE" 2>/dev/null || true
+    if [ "$code" = 0 ]; then
+      herdr pane close "$PANE" >/dev/null 2>&1 || true
+    else
+      echo "Handoff '$SLUG' exited $code; pane $PANE left open for inspection" >&2
+    fi
+    exit "$code"
+  fi
+  echo "Herdr pane setup failed; running '$SLUG' inline" >&2
+fi
+
 if [ "$REVIEW" = 1 ]; then
   [ "$MODEL_SET" = 1 ] || MODEL="$REVIEW_MODEL"
   SPEC_NOTE="The spec is $TASK_FILE."
@@ -103,7 +189,7 @@ Verify every claim against the actual files. Each finding: severity (blocker/maj
   commandcode -p -m "$MODEL" --max-turns "$MAX_TURNS" --permission-mode plan -t \
     --no-session --skip-onboarding --no-auto-update <<<"$PROMPT" > "$OUT_FILE" 2>&1 &
   CC_PID=$!
-  ( sleep "$TIMEOUT"; kill -TERM "$CC_PID" 2>/dev/null && touch "$LOG_DIR/TASK-${SLUG}.timedout" ) &
+  ( sleep "$TIMEOUT"; kill -TERM "$CC_PID" 2>/dev/null && touch "$LOG_DIR/TASK-${SLUG}.timedout" ) >/dev/null 2>&1 &
   WATCHDOG=$!
   exit_code=0
   wait "$CC_PID" || exit_code=$?
@@ -160,9 +246,10 @@ echo "{\"type\":\"cmd-execute\",\"slug\":\"$SLUG\",\"model\":\"$MODEL\",\"starte
 
 rm -f "$LOG_DIR/TASK-${SLUG}.timedout"
 # Prompt goes via stdin to dodge argv limits; macOS has no `timeout`, so use a watchdog.
+# The watchdog drops stdout so its sleep cannot hold a caller's pipe open.
 "${cmd[@]}" <<<"$PROMPT" >> "$LOG_FILE" 2>&1 &
 CC_PID=$!
-( sleep "$TIMEOUT"; kill -TERM "$CC_PID" 2>/dev/null && touch "$LOG_DIR/TASK-${SLUG}.timedout" ) &
+( sleep "$TIMEOUT"; kill -TERM "$CC_PID" 2>/dev/null && touch "$LOG_DIR/TASK-${SLUG}.timedout" ) >/dev/null 2>&1 &
 WATCHDOG=$!
 
 exit_code=0
@@ -170,7 +257,7 @@ wait "$CC_PID" || exit_code=$?
 kill "$WATCHDOG" 2>/dev/null || true
 rm -f "$PID_FILE"
 
-session_id="$(grep '"type":"result"' "$LOG_FILE" | tail -1 | sed -n 's/.*"sessionId":"\([^"]*\)".*/\1/p')"
+session_id="$(grep '"type":"result"' "$LOG_FILE" | tail -1 | sed -n 's/.*"sessionId":"\([^"]*\)".*/\1/p' || true)"
 [ -n "$session_id" ] && echo "$session_id" > "$SESSION_FILE"
 
 if [ -f "$LOG_DIR/TASK-${SLUG}.timedout" ]; then

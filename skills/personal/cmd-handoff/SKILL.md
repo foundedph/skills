@@ -62,6 +62,8 @@ It runs `commandcode -p -m deepseek/deepseek-v4-flash --output-format json --yol
 
 With `--bg`, it returns immediately. Tell the user to check `cmd-execute.sh status <slug>` and re-run `/cmd-handoff <slug>` when it's done, then stop.
 
+**Inside Herdr** (`HERDR_ENV=1`, never Claude Desktop) the wrapper runs itself in a pane of a `handoffs` tab so the user can watch, waits, and exits with the same code; nothing changes for the caller. At most 4 handoff panes run at once (`CMD_PANE_CAP`), extra seams queue. The pane closes on exit 0 and stays open on failure. `--no-pane` or `CMD_NO_PANE=1` runs inline.
+
 ## 4. Review with /code-review
 
 Commit the executor's changes to the current branch (it's told not to commit).
