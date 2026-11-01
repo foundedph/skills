@@ -26,22 +26,17 @@ Autonomous once started: no questions between items or passes, and blockers park
 
 **`commandcode status` fails:** `drain.sh exec-pi <slug>` for GREEN.
 
-**Token discipline:**
-
-- On Opus, say so once and suggest `/model sonnet`. Pin `model` on every subagent.
-- Read only `## Executor results` and `git diff --stat` from an executor, and the tail of `npm run check`.
-- Background every wait (`cp-supervise`, `npm run check`).
-- Re-read `~/.local/bin/budget-tier-read` every ~10 merges.
+**Token discipline:** on Opus say so once and suggest `/model sonnet`; pin `model` on every subagent; read only an executor's `## Executor results`, `git diff --stat` and the tail of `npm run check`; background every wait; re-read `~/.local/bin/budget-tier-read` every ~10 merges.
 
 ## Capacity
 
-**Two workers at most**: a pane agent, a building subagent or this session's own build each count. A pane takes one spec or one small chain on files no other worker touches, and a brief file (this skill's Issues, Close out and Recorded E2E sections, plus its own scratch stack: `E2E_SCRATCH_DIR=$HOME/.cache/erp-e2e-scratch-<name>` and unique `SCRATCH_PG_PORT`, `STUB_PORT`, `APP_PORT`). Start it with `herdr agent start <name> --kind claude --pane <pane> -- --model sonnet --permission-mode auto`; close it (`herdr pane close`) once its work is merged or parked and its report is in, then prune its worktrees (below).
+**Two workers at most**: a pane agent, a building subagent and this session's own build each count. A pane takes one spec or small chain on files no other worker touches, plus a brief file (this skill's Issues, Close out and Recorded E2E sections and its own scratch stack: `E2E_SCRATCH_DIR=$HOME/.cache/erp-e2e-scratch-<name>` with unique `SCRATCH_PG_PORT`, `STUB_PORT`, `APP_PORT`). Start it with `herdr agent start <name> --kind claude --pane <pane> -- --model sonnet --permission-mode auto`. Read its report with `~/.claude/scripts/agent-last.sh <name>` (`herdr agent read` is clipped). Once its work is merged or parked and the report is in, `herdr pane close` it and prune (below).
 
-**Resource gate** before every new worker, full check and E2E run: read `uptime`, `memory_pressure` and `df -h /`, and hold while 5-minute load exceeds 30, free memory is under 15%, or free disk is under 5 GB. `npm run check` refuses below 3 GB free; that floor stays. Keep one background watcher (`until <disk under 4 GB or free memory under 12%>; do sleep 60; done`) and pause workers when it fires. Look at `ps -Ao pcpu,comm -r` before blaming the drain: macOS daemons (`mediaanalysisd`, Spotlight) can drive the load.
+**Resource gate** before every new worker, full check and E2E run: read `uptime`, `memory_pressure`, `df -h /`; hold while 5-minute load exceeds 30, free memory is under 15% or free disk is under 5 GB (`npm run check` itself refuses below 3 GB; that floor stays). Keep one background watcher (`until <disk under 4 GB or free memory under 12%>; do sleep 60; done`) and pause workers when it fires. Swap grows into the boot disk, so a memory squeeze shows up as falling free disk. Check `ps -Ao pcpu,comm -r` before blaming the drain; macOS daemons can drive the load.
 
-**One full check at a time.** Take `mkdir /tmp/repo-drain-check.lock`, or queue with `(until mkdir /tmp/repo-drain-check.lock 2>/dev/null; do sleep 20; done; npm run check > <log> 2>&1; echo "check-exit=$?" >> <log>; rmdir /tmp/repo-drain-check.lock) &`. A lock with no `run-check` process is stale: `rmdir` it. Rerun each failing file alone on a pristine `origin/dev` worktree: red there is baseline, green alone is a load flake, red only on the branch is yours.
+**One full check at a time, enforced by `npm run check`.** It takes a per-user lock (`~/.cache/signportal/check.lock`), queues behind a holder and names it; `CHECK_NO_LOCK=1` bypasses. After a failure it reruns each failing file alone and prints `passes alone (load flake)` or `fails alone (red)`. Red there and red on a pristine `origin/dev` worktree is baseline (`gh issue create` for a new one); red only on the branch is yours. Background it and read the tail.
 
-**Prune as you go.** After every merge run `~/.claude/skills/repo-drain/scripts/prune-worktrees.sh --repo <repo> --apply` (without `--apply` for a dry run; `--keep <substr>` shields another session's worktrees; `--sweep` also removes the regenerable `node_modules` and `.check-logs` of idle worktrees that stay). It removes a worktree and its local branch only when the tree is clean, no live process works in it, and its work is provably merged: HEAD is on `origin/dev`, or a merged PR's head commit equals HEAD. It never forces, and lists every kept worktree with the reason. Other deletions (recordings, scratch caches, another session's files) need the user's word; when disk is short, list the biggest items and ask.
+**Prune as you go.** After every merge run `~/.claude/skills/repo-drain/scripts/prune-worktrees.sh --repo <repo> --apply` (no `--apply` for a dry run; `--keep <substr>` shields another session's worktrees; `--sweep` also clears `node_modules` and `.check-logs` in idle worktrees that stay). It removes a worktree and its local branch only when the tree is clean, no live process works in it, and its work is provably merged (HEAD on `origin/dev`, or a merged PR's head commit equals HEAD). It never forces and names why each kept worktree stays. Any other deletion (recordings, scratch caches, another session's files) needs the user's word.
 
 ## Loop
 
@@ -120,7 +115,7 @@ Builders and `to-tickets` are user-invoked, so read their `SKILL.md` and follow 
 
 **Close out, either builder:**
 
-1. `npm run check` under the lock (Capacity). Failures from this diff go back as a Command Code round. A change to security, auth, privileges, RLS, a migration or a deploy path also gets a `reviewer-deep` pass: apply every FIX-FIRST finding, then re-review the delta.
+1. `npm run check` (Capacity). Failures from this diff go back as a Command Code round. A change to security, auth, privileges, RLS, a migration or a deploy path also gets a `reviewer-deep` pass: apply every FIX-FIRST finding, then re-review the delta.
 2. **Recorded E2E**, for any user-visible change. See below.
 3. PR into `dev`: `drain.sh pr-create <N>`, or for a spec `gh pr create --base dev` with one `Closes #N` per ticket. Add `e2e-required` when step 2 applied, and list each test, its verdict and its recording path in the body.
 4. PRs above.
@@ -132,7 +127,7 @@ A PR leaves here only with its browser test passing. Rules live in `docs/TESTING
 
 - Claude writes the test as part of RED: `tests/e2e/<feature>.test.sh`, sourcing `lib/record.sh`, one `record_start` after login. Cover each state change a reviewer would want to see.
 - Run on the scratch stack (`scripts/e2e-scratch/up.sh`) with `E2E_REQUIRE_SCRATCH=1` and `AGENT_BROWSER_SESSION=scratch-<name>-$$`, in the background, and read back only `grep -E "OK|FAIL|recording:"`. Writes to the shared prod database are out of bounds.
-- `up.sh` loads `scripts/e2e-scratch/fixtures.sql` only into a new database: after changing fixtures or applying a migration run `REBUILD=1 bash scripts/e2e-scratch/up.sh`. Run `agent-browser --session <name> close` after every run so sessions do not leak.
+- `up.sh` rebuilds the scratch DB itself when `fixtures.sql` changed (`NO_AUTO_REBUILD=1` opts out). Run `agent-browser --session <name> close` after every run so sessions do not leak. A new `tests/e2e/*.test.sh` must source `lib/record.sh` and call `record_start` (`lint-e2e` enforces it) and compare `agent-browser eval` output through `ab_text`/`ab_eval_str`, which strip the JSON quotes.
 - Passing means exit 0 **and** a `recording:` line pointing at a non-empty `.webm`; `record.sh` only warns when recording fails, so a missing file is a failed run. Recordings are gitignored, so they stay on the machine that ran the test.
 - `E2E-Not-Applicable: <reason>` is for changes with no observable behavior only.
 - Failure: fetch a login token twice first; a 504, 500 or `fetch failed` means infra, so park as infra. Otherwise send it back as a Command Code round, two repairs at most, then park with `e2e-failed` and a comment.
