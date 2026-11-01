@@ -35,13 +35,13 @@ Autonomous once started: no questions between items or passes, and blockers park
 
 ## Capacity
 
-**Two workers at most**: a pane agent, a building subagent or this session's own build each count. A pane takes one spec or one small chain on files no other worker touches, and a brief file (this skill's Issues, Close out and Recorded E2E sections, plus its own scratch stack: `E2E_SCRATCH_DIR=$HOME/.cache/erp-e2e-scratch-<name>` and unique `SCRATCH_PG_PORT`, `STUB_PORT`, `APP_PORT`). Start it with `herdr agent start <name> --kind claude --pane <pane> -- --model sonnet --permission-mode auto`; close it (`herdr pane close`) once its work is merged or parked and its report is in. Worktrees, branches and recordings stay.
+**Two workers at most**: a pane agent, a building subagent or this session's own build each count. A pane takes one spec or one small chain on files no other worker touches, and a brief file (this skill's Issues, Close out and Recorded E2E sections, plus its own scratch stack: `E2E_SCRATCH_DIR=$HOME/.cache/erp-e2e-scratch-<name>` and unique `SCRATCH_PG_PORT`, `STUB_PORT`, `APP_PORT`). Start it with `herdr agent start <name> --kind claude --pane <pane> -- --model sonnet --permission-mode auto`; close it (`herdr pane close`) once its work is merged or parked and its report is in, then prune its worktrees (below).
 
 **Resource gate** before every new worker, full check and E2E run: read `uptime`, `memory_pressure` and `df -h /`, and hold while 5-minute load exceeds 30, free memory is under 15%, or free disk is under 5 GB. `npm run check` refuses below 3 GB free; that floor stays. Keep one background watcher (`until <disk under 4 GB or free memory under 12%>; do sleep 60; done`) and pause workers when it fires. Look at `ps -Ao pcpu,comm -r` before blaming the drain: macOS daemons (`mediaanalysisd`, Spotlight) can drive the load.
 
 **One full check at a time.** Take `mkdir /tmp/repo-drain-check.lock`, or queue with `(until mkdir /tmp/repo-drain-check.lock 2>/dev/null; do sleep 20; done; npm run check > <log> 2>&1; echo "check-exit=$?" >> <log>; rmdir /tmp/repo-drain-check.lock) &`. A lock with no `run-check` process is stale: `rmdir` it. Rerun each failing file alone on a pristine `origin/dev` worktree: red there is baseline, green alone is a load flake, red only on the branch is yours.
 
-**Deleting needs the user's word.** When disk is short, list the biggest items and ask.
+**Prune as you go.** After every merge run `~/.claude/skills/repo-drain/scripts/prune-worktrees.sh --repo <repo> --apply` (without `--apply` for a dry run; `--keep <substr>` shields another session's worktrees). It removes a worktree and its local branch only when the tree is clean, no live process works in it, and its work is provably merged: HEAD is on `origin/dev`, or a merged PR's head commit equals HEAD. It never forces, and lists every kept worktree with the reason. Other deletions (recordings, scratch caches, another session's files) need the user's word; when disk is short, list the biggest items and ask.
 
 ## Loop
 
@@ -124,7 +124,7 @@ Builders and `to-tickets` are user-invoked, so read their `SKILL.md` and follow 
 2. **Recorded E2E**, for any user-visible change. See below.
 3. PR into `dev`: `drain.sh pr-create <N>`, or for a spec `gh pr create --base dev` with one `Closes #N` per ticket. Add `e2e-required` when step 2 applied, and list each test, its verdict and its recording path in the body.
 4. PRs above.
-5. After the merge: close each ticket by hand (`gh issue close --reason completed` with the PR number and the test evidence; `Closes` does not fire on a non-default base), `loop-drain` Phase 8 work-log row, refresh `origin/dev`. Leave the worktree in place (Capacity).
+5. After the merge: close each ticket by hand (`gh issue close --reason completed` with the PR number and the test evidence; `Closes` does not fire on a non-default base), `loop-drain` Phase 8 work-log row, refresh `origin/dev`. Then prune (Capacity).
 
 ### Recorded E2E
 
