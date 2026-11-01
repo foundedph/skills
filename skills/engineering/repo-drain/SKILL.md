@@ -33,6 +33,16 @@ Autonomous once started: no questions between items or passes, and blockers park
 - Background every wait (`cp-supervise`, `npm run check`).
 - Re-read `~/.local/bin/budget-tier-read` every ~10 merges.
 
+## Capacity
+
+**Two workers at most**: a pane agent, a building subagent or this session's own build each count. A pane takes one spec or one small chain on files no other worker touches, and a brief file (this skill's Issues, Close out and Recorded E2E sections, plus its own scratch stack: `E2E_SCRATCH_DIR=$HOME/.cache/erp-e2e-scratch-<name>` and unique `SCRATCH_PG_PORT`, `STUB_PORT`, `APP_PORT`). Start it with `herdr agent start <name> --kind claude --pane <pane> -- --model sonnet --permission-mode auto`; close it (`herdr pane close`) once its work is merged or parked and its report is in. Worktrees, branches and recordings stay.
+
+**Resource gate** before every new worker, full check and E2E run: read `uptime`, `memory_pressure` and `df -h /`, and hold while 5-minute load exceeds 30, free memory is under 15%, or free disk is under 5 GB. `npm run check` refuses below 3 GB free; that floor stays. Keep one background watcher (`until <disk under 4 GB or free memory under 12%>; do sleep 60; done`) and pause workers when it fires. Look at `ps -Ao pcpu,comm -r` before blaming the drain: macOS daemons (`mediaanalysisd`, Spotlight) can drive the load.
+
+**One full check at a time.** Take `mkdir /tmp/repo-drain-check.lock`, or queue with `(until mkdir /tmp/repo-drain-check.lock 2>/dev/null; do sleep 20; done; npm run check > <log> 2>&1; echo "check-exit=$?" >> <log>; rmdir /tmp/repo-drain-check.lock) &`. A lock with no `run-check` process is stale: `rmdir` it. Rerun each failing file alone on a pristine `origin/dev` worktree: red there is baseline, green alone is a load flake, red only on the branch is yours.
+
+**Deleting needs the user's word.** When disk is short, list the biggest items and ask.
+
 ## Loop
 
 ```
@@ -44,7 +54,7 @@ loop:
   each remaining eligible issue, newest first, priority labels first → Issues
 ```
 
-A *spec* is an open issue titled `PRD:` or labeled `parent`; its tickets are its GitHub sub-issues (`gh api repos/<repo>/issues/<N>/sub_issues`) plus issues naming it in `Part of`. Rebuild inventory after every merge. One PR in flight at a time. Three retries per item, then park it with a blocker note and continue.
+A *spec* is an open issue titled `PRD:` or labeled `parent`; its tickets are its GitHub sub-issues (`gh api repos/<repo>/issues/<N>/sub_issues`) plus issues naming it in `Part of`. Rebuild inventory after every merge. One PR in flight per spec. Three retries per item, then park it with a blocker note and continue.
 
 **Skip when any holds:**
 
@@ -72,14 +82,17 @@ Before working a PR or spec, check whether it is already done or replaced. Read 
 
 Evidence short of this leaves it open and goes on the report as "maybe closable". PRs labeled `do-not-merge` or `wip` stay untouched.
 
+**Unlabelled issues** get a read-only triage before any build, one verdict each with evidence: FIXED (cite the commit or `file:line` on `origin/dev`; close it), SUPERSEDED (name the successor; close it), BUILD (still present, fixable in this repo by an agent; give the smallest fix and the test that proves it), HUMAN (production, credentials, FileMaker or a product call; park it with the reason). A merged PR whose `Closes #N` did not fire (base is `dev`) is a FIXED case: close the issue by hand with the PR number.
+
 ## PRs
 
 The control plane (CP) merges. Merge by hand only through `cp-drive`, on a stall trigger. `dev → main` is human-only.
 
 `drain.sh pr-status <PR>`, then:
 
-- **Conflicts, red checks, or behind `dev`:** repair per Routing, push. Stale bases clobber newer files on squash.
-- **Green:** `drain.sh cp-supervise <PR>`.
+- **Stale-base guard, before every push:** `git fetch origin`, merge `origin/dev` into the branch (no rebase, no force-push), then `git diff origin/dev...HEAD --stat` must show only this slice's files and no reverted newer `dev` lines; otherwise park the PR as `needs-human-review`. Union-merge `docs/wiki/*`, `scripts/check-groups.txt` and `scripts/e2e-scratch/fixtures.sql`.
+- **Conflicts, red checks, or behind `dev`:** repair per Routing, push.
+- **Green:** `drain.sh cp-supervise <PR>` in the background. A PR that changes the control plane's deploy path (`automation/`) gets `needs-human-review` instead, and a person merges it.
 - **Stall trigger:** follow `~/.claude/skills/cp-drive/SKILL.md` for this PR, using *the review* for any second pass on a risky diff:
   - `cp-supervise` timed out and the pinned status comment has not moved
   - status comment shows `406 ... too_large`
@@ -107,19 +120,20 @@ Builders and `to-tickets` are user-invoked, so read their `SKILL.md` and follow 
 
 **Close out, either builder:**
 
-1. `npm run check`. Failures from this diff go back as a Command Code round.
+1. `npm run check` under the lock (Capacity). Failures from this diff go back as a Command Code round. A change to security, auth, privileges, RLS, a migration or a deploy path also gets a `reviewer-deep` pass: apply every FIX-FIRST finding, then re-review the delta.
 2. **Recorded E2E**, for any user-visible change. See below.
 3. PR into `dev`: `drain.sh pr-create <N>`, or for a spec `gh pr create --base dev` with one `Closes #N` per ticket. Add `e2e-required` when step 2 applied, and list each test, its verdict and its recording path in the body.
 4. PRs above.
-5. `loop-drain` Phase 8: work-log row with checkable evidence, refresh `origin/dev`, remove the worktree.
+5. After the merge: close each ticket by hand (`gh issue close --reason completed` with the PR number and the test evidence; `Closes` does not fire on a non-default base), `loop-drain` Phase 8 work-log row, refresh `origin/dev`. Leave the worktree in place (Capacity).
 
 ### Recorded E2E
 
 A PR leaves here only with its browser test passing. Rules live in `docs/TESTING.md` → Recorded e2e and `docs/context/testing-ops.md` → E2E without touching prod.
 
 - Claude writes the test as part of RED: `tests/e2e/<feature>.test.sh`, sourcing `lib/record.sh`, one `record_start` after login. Cover each state change a reviewer would want to see.
-- Run on the scratch stack (`scripts/e2e-scratch/up.sh`) with `E2E_REQUIRE_SCRATCH=1` and `AGENT_BROWSER_SESSION=scratch-<name>-$$`, in the background, and read back only `grep -E "PASS|FAIL|recording:"`. Writes to the shared prod database are out of bounds.
-- Passing means PASS **and** a `recording:` line pointing at a non-empty `.webm`; `record.sh` only warns when recording fails, so a missing file is a failed run. Recordings are gitignored, so they stay on the machine that ran the test.
+- Run on the scratch stack (`scripts/e2e-scratch/up.sh`) with `E2E_REQUIRE_SCRATCH=1` and `AGENT_BROWSER_SESSION=scratch-<name>-$$`, in the background, and read back only `grep -E "OK|FAIL|recording:"`. Writes to the shared prod database are out of bounds.
+- `up.sh` loads `scripts/e2e-scratch/fixtures.sql` only into a new database: after changing fixtures or applying a migration run `REBUILD=1 bash scripts/e2e-scratch/up.sh`. Run `agent-browser --session <name> close` after every run so sessions do not leak.
+- Passing means exit 0 **and** a `recording:` line pointing at a non-empty `.webm`; `record.sh` only warns when recording fails, so a missing file is a failed run. Recordings are gitignored, so they stay on the machine that ran the test.
 - `E2E-Not-Applicable: <reason>` is for changes with no observable behavior only.
 - Failure: fetch a login token twice first; a 504, 500 or `fetch failed` means infra, so park as infra. Otherwise send it back as a Command Code round, two repairs at most, then park with `e2e-failed` and a comment.
 
