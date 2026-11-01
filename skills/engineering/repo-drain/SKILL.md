@@ -49,7 +49,7 @@ loop:
   each remaining eligible issue, newest first, priority labels first → Issues
 ```
 
-A *spec* is an open issue titled `PRD:` or labeled `parent`; its tickets are its GitHub sub-issues (`gh api repos/<repo>/issues/<N>/sub_issues`) plus issues naming it in `Part of`. Rebuild inventory after every merge. One PR in flight per spec. Three retries per item, then park it with a blocker note and continue.
+A *spec* is an open issue titled `PRD:` or labeled `parent`; its tickets are its GitHub sub-issues (`gh api repos/<repo>/issues/<N>/sub_issues`) plus issues naming it in `Part of`. Rebuild inventory after every merge, and re-read an issue's state (`gh issue view`) and `git log origin/dev` right before dispatching it: other sessions drain the same repo, and a triage verdict goes stale in minutes. One PR in flight per spec. Three retries per item, then park it with a blocker note and continue.
 
 **Skip when any holds:**
 
